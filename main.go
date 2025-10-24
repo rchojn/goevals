@@ -200,8 +200,8 @@ func main() {
 	http.HandleFunc("/health", healthHandler)
 
 	// Start server
-	port := ":8080"
-	log.Printf("🚀 GoEvals dashboard starting on http://localhost%s", port)
+	port := ":3000"
+	log.Printf("🐹 GoEvals dashboard starting on http://localhost%s", port)
 	log.Printf("📊 Showing %d evals from %d models", evalData.TotalTests, len(evalData.Models))
 
 	if err := http.ListenAndServe(port, nil); err != nil {
@@ -310,7 +310,7 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
 <body>
     <div class="container">
         <header>
-            <h1>🚀 GoEvals Dashboard</h1>
+            <h1>🐹 GoEvals Dashboard</h1>
             <p class="subtitle">Simple, self-hosted LLM evaluation visualization</p>
         </header>
 
@@ -361,7 +361,7 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
         </div>
 
         <footer>
-            Built with Go stdlib + HTML + common sense 🚀<br>
+            Built with Go stdlib + HTML + common sense 🐹<br>
             <a href="https://github.com/rchojn/goevals" style="color: #3b82f6;">github.com/rchojn/goevals</a>
         </footer>
     </div>

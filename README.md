@@ -1,9 +1,15 @@
-# GoEvals - LLM Evaluation Dashboard
+<div align="center">
+  <img src="assets/goevals.png" alt="GoEvals Logo" width="200"/>
 
-**Simple, self-hosted, Go-native dashboard for visualizing LLM evaluation results.**
+  # GoEvals - LLM Evaluation Dashboard
 
-[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://go.dev)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+  **Simple, self-hosted, Go-native dashboard for visualizing LLM evaluation results.**
+
+  [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://go.dev)
+  [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+  ![GoEvals Dashboard](assets/screenshot.png)
+</div>
 
 ---
 
@@ -211,4 +217,4 @@ Inspired by:
 
 ---
 
-**Built with Go stdlib and common sense.** 🚀
+**Built with Go stdlib and common sense.** 🐹

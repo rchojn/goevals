@@ -20,7 +20,7 @@ Existing LLM evaluation tools are either **Python-heavy** (complex setup), **clo
 **GoEvals** is different:
 - ✅ **Single binary** - No Python, no Docker, no dependencies
 - ✅ **Self-hosted** - Your data stays on your machine
-- ✅ **Fast** - Starts in <100ms, handles millions of evals
+- ✅ **Fast** - Starts in <100ms
 - ✅ **Simple** - Works with standard JSONL format
 
 Perfect for **Go developers building AI/ML applications** who want a lightweight eval dashboard.
@@ -30,171 +30,90 @@ Perfect for **Go developers building AI/ML applications** who want a lightweight
 ## Quick Start
 
 ```bash
-# Download binary (Linux/macOS/Windows)
-# TODO: Add releases
-
-# Or run from source
+# Clone and run
 git clone https://github.com/rchojn/goevals
 cd goevals
 go run main.go evals_sample.jsonl
 
-# Visit http://localhost:8080
+# Visit http://localhost:3000
 ```
 
 ---
 
-## Features
+## What It Does
 
-### Current (MVP)
-- ✅ Parse JSONL eval files (industry standard format)
-- ✅ Model comparison table (avg score, min/max, response time)
-- ✅ Aggregate statistics dashboard
-- ✅ Zero-config setup
+GoEvals reads **JSONL files** (one JSON object per line) and shows you:
 
-### Planned
-- 📊 Interactive charts (score distribution, trends over time)
-- 🔍 Test detail view (drill into individual evals)
-- 📈 Export static HTML reports
-- ⚡ Real-time updates (watch JSONL file for changes)
+- 📊 **Total tests** and **average score** across all evals
+- 🤖 **Model comparison table** with min/max scores and response times
+- 🎨 **Color-coded scores** (green >0.8, yellow 0.6-0.8, red <0.6)
+
+That's it! No configuration, no databases, no complex setup.
 
 ---
 
 ## JSONL Format
 
-GoEvals expects **JSON Lines** format (one JSON object per line):
+Expected format (one line per eval):
 
 ```jsonl
-{"timestamp":"2025-10-24T18:43:35Z","model":"gpt-4","test_id":"test1","scores":{"combined":0.85},"response_time_ms":1234}
-{"timestamp":"2025-10-24T18:44:12Z","model":"claude-3","test_id":"test1","scores":{"combined":0.92},"response_time_ms":987}
+{"model":"gpt-4","scores":{"combined":0.85},"response_time_ms":1234}
+{"model":"claude-3","scores":{"combined":0.92},"response_time_ms":987}
 ```
 
 **Required fields:**
-- `model` (string) - Model identifier
-- `scores.combined` (float) - Overall score (0.0-1.0)
+- `model` - Model name (string)
+- `scores.combined` - Overall score 0.0-1.0 (float)
 
 **Optional fields:**
-- `timestamp` (ISO8601) - When eval was run
-- `test_id` (string) - Test case identifier
-- `response_time_ms` (int) - Generation time in milliseconds
-- `scores.*` (float) - Additional score breakdowns
-- `metadata` (object) - Custom metadata
-
-**Why JSONL?**
-- Streaming-friendly (parse line-by-line, low memory)
-- Append-only (no file rewrite needed)
-- Unix-friendly (`grep`, `jq`, `tail -f` work!)
-- Industry standard (OpenAI, Google, Azure use it)
+- `timestamp` - When eval ran (ISO8601)
+- `test_id` - Test identifier (string)
+- `response_time_ms` - Generation time (int)
+- `scores.*` - Additional metrics (float)
+- `question`, `response`, `expected` - Test details (string)
+- `metadata` - Custom data (object)
 
 ---
 
-## Usage Examples
-
-```bash
-# Basic dashboard
-goevals evals.jsonl
-
-# Specify port
-goevals --port 3000 evals.jsonl
-
-# Watch mode (auto-reload on file changes)
-goevals --watch evals.jsonl
-
-# Export static HTML
-goevals --export report.html evals.jsonl
-```
-
----
-
-## Generating JSONL Evals
-
-### From Go (gai/eval)
-
-```go
-import "maragu.dev/gai/eval"
-
-// Run eval
-result := eval.LexicalSimilarityScorer(eval.ExactMatch)(sample)
-
-// Log to JSONL
-f, _ := os.OpenFile("evals.jsonl", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-json.NewEncoder(f).Encode(map[string]any{
-    "timestamp":        time.Now().Format(time.RFC3339),
-    "model":           "gpt-4",
-    "test_id":         "test1",
-    "scores":          map[string]float64{"combined": float64(result.Score)},
-    "response_time_ms": 1234,
-})
-```
-
-### From Python
-
-```python
-import json
-from datetime import datetime
-
-eval_result = {
-    "timestamp": datetime.now().isoformat(),
-    "model": "gpt-4",
-    "test_id": "test1",
-    "scores": {"combined": 0.85},
-    "response_time_ms": 1234
-}
-
-with open('evals.jsonl', 'a') as f:
-    f.write(json.dumps(eval_result) + '\n')
-```
-
-### Compatible Tools
+## Compatible With
 
 GoEvals works with eval outputs from:
 - [gai/eval](https://github.com/maragudk/gai) (Go)
 - [OpenAI Evals](https://github.com/openai/evals)
-- [LangChain evaluators](https://python.langchain.com/docs/guides/evaluation/)
-- Custom evaluation pipelines (just output JSONL!)
+- Any tool that outputs JSONL
+
+### Example: Log from Go
+
+```go
+f, _ := os.OpenFile("evals.jsonl", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+json.NewEncoder(f).Encode(map[string]any{
+    "model": "gpt-4",
+    "scores": map[string]float64{"combined": 0.85},
+    "response_time_ms": 1234,
+})
+```
 
 ---
 
 ## Tech Stack
 
-**Current (MVP):**
-- Go stdlib (`net/http`, `html/template`, `encoding/json`)
+**Current:**
+- Pure Go stdlib (`net/http`, `html/template`, `encoding/json`)
 - Zero dependencies
+- Single file deployment
 
-**Planned:**
-- [a-h/templ](https://templ.guide) - Type-safe templates
-- [htmx](https://htmx.org) - Dynamic interactions
-- [Chart.js](https://www.chartjs.org) - Interactive charts
-
----
-
-## Why Go?
-
-Go is perfect for CLI/dashboard tools:
-- **Single binary** - Distribute as one file (vs Python venv hell)
-- **Fast startup** - <100ms (vs 5s for Python imports)
-- **Low memory** - 20MB (vs 500MB+ for Python ML tools)
-- **Cross-platform** - Compile once, run anywhere
-
----
-
-## Roadmap
-
-- [x] **Week 1**: MVP with basic dashboard
-- [ ] **Month 1**: Chart.js integration, test detail view
-- [ ] **Month 2**: Community feedback, feature requests
-- [ ] **Month 3**: Enterprise features (if needed)
+**Future (see [CHANGELOG.md](CHANGELOG.md)):**
+- Type-safe templates ([a-h/templ](https://templ.guide))
+- Dynamic interactions ([htmx](https://htmx.org))
+- Charts ([Chart.js](https://www.chartjs.org))
 
 ---
 
 ## Contributing
 
-**Status**: Early MVP - Not accepting PRs yet!
+⭐ Star the repo if you find it useful!
 
-**Want to help?**
-1. ⭐ Star the repo
-2. 🐛 Report bugs in [Issues](https://github.com/rchojn/goevals/issues)
-3. 💬 Share feedback
-4. 📢 Spread the word in Go/AI communities
+🐛 Report bugs in [Issues](https://github.com/rchojn/goevals/issues)
 
 ---
 
@@ -202,18 +121,13 @@ Go is perfect for CLI/dashboard tools:
 
 MIT License - Free forever, use anywhere.
 
-See [LICENSE](LICENSE) for details.
-
 ---
 
 ## Author
 
 Built by [@rchojn](https://github.com/rchojn) - Go developer exploring AI/ML tooling.
 
-Inspired by:
-- [evals.fun](https://evals.fun) - Simple eval visualization
-- [Langfuse](https://langfuse.com) - LLM observability
-- The Go + AI/ML community
+Inspired by [evals.fun](https://evals.fun), [Langfuse](https://langfuse.com), and the Go community.
 
 ---
 

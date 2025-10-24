@@ -49,37 +49,74 @@ This is the initial MVP following AnthonyGG's "boring technology" philosophy.
 
 ## Planned Features
 
-### v0.2.0 - Charts & Visualization
-- [ ] Chart.js integration for score distribution
-- [ ] Timeline view (score trends over time)
-- [ ] Test detail drill-down page
-- [ ] Filter by model/test_id
+### v0.2.0 - Essential CLI (Priority: HIGH for SafeReader)
+**Goal:** Make it usable for daily SafeReader eval workflow
 
-### v0.3.0 - Polish & UX
+- [ ] **CLI flags** - `--port`, `--file` for better control
+- [ ] **Watch mode** - Auto-reload when evals.jsonl changes (instant feedback!)
+- [ ] **Test detail view** - Click model row → see individual test results
+- [ ] **Filter controls** - Filter by model, test_id, date range
+- [ ] **Error handling** - Better messages when JSONL is malformed
+
+**Why this first?**
+- Watch mode = instant feedback during SafeReader testing
+- Drill-down = quickly find which tests failed and why
+- Filters = focus on specific model/test when debugging
+
+**Use case:**
+```bash
+# Run in background, auto-updates as tests complete
+goevals --watch --port 3000 ../safereader/desktop/tests/evals.jsonl
+
+# In another terminal: run SafeReader tests
+go test -run TestEvalRAGModels -v
+
+# Browser auto-refreshes with new results!
+```
+
+### v0.3.0 - Visualization (Priority: MEDIUM)
+**Goal:** Visual comparison of models and trends
+
+- [ ] **Chart.js integration** - Score distribution histogram
+- [ ] **Timeline view** - Score trends over time (detect regression!)
+- [ ] **Scatter plot** - Score vs response time (find sweet spot)
+- [ ] **Keyword breakdown** - See which keywords are commonly missed
+
+**Why this?**
+- Visual comparison easier than reading tables
+- Trend detection for SafeReader improvements
+- Find performance/quality tradeoffs
+
+### v0.4.0 - Collaboration (Priority: LOW)
+**Goal:** Share results with team
+
+- [ ] **Export HTML** - Static report for sharing
+- [ ] **Compare multiple files** - Before/after prompt changes
+- [ ] **JSON export** - Processed stats for external tools
+- [ ] **CLI stats mode** - Quick summary without browser
+
+### v0.5.0 - Polish & UX (Priority: LOW)
+**Goal:** Better developer experience
+
 - [ ] Migrate to `a-h/templ` (type-safe templates)
-- [ ] Add htmx for dynamic interactions
+- [ ] Add htmx for dynamic updates (no page reload)
 - [ ] Tailwind CSS styling
 - [ ] Responsive mobile layout
 
-### v0.4.0 - Advanced Features
-- [ ] Watch mode (auto-reload on file changes)
-- [ ] Export static HTML reports
-- [ ] CLI flags (port, file path, watch mode)
-- [ ] Multiple JSONL file comparison
+### v1.0.0 - Production Ready (Priority: FUTURE)
+**Goal:** Public release with confidence
 
-### v1.0.0 - Production Ready
-- [ ] Comprehensive test suite
+- [ ] Comprehensive test suite (tests for the test dashboard!)
 - [ ] CI/CD pipeline (GitHub Actions)
 - [ ] Binary releases (Linux, macOS, Windows)
-- [ ] Docker image
-- [ ] Full documentation site
+- [ ] Docker image (optional)
+- [ ] Documentation site (GitHub Pages)
 
 ---
 
 ## Contributors
 
 - [@rchojn](https://github.com/rchojn) - Creator & Maintainer
-- Built with assistance from [Claude Code](https://claude.com/claude-code)
 
 ---
 

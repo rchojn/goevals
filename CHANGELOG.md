@@ -5,6 +5,51 @@ All notable changes to GoEvals will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+<!-- Features and improvements currently in development -->
+
+## [2.0.0] - 2025-10-26
+
+**Major release** - Smart polling, sortable columns, and multiple files support.
+
+### Added
+- Smart polling endpoint `/api/evals/since` with 5-second refresh interval (no more flickering!)
+- Multiple JSONL files support - `./goevals file1.jsonl file2.jsonl file3.jsonl`
+- Sortable columns with visual indicators (⇅, ▲, ▼) - click any header to sort
+- Automatic custom score detection from JSONL (framework-agnostic)
+- Visual refresh indicator showing last update time and connection status
+
+### Changed
+- Improved refresh strategy - 5s smart polling vs 10s full page reload
+- Simplified data model - use `timestamp` (ISO8601) for all time tracking
+
+### Removed
+- **BREAKING**: `test_run_date` field removed (use `timestamp` instead)
+
+### Fixed
+- Template rendering flickering during dashboard updates
+- Scroll position lost on page reload
+- Performance improvements for result filtering
+
+### Migration from v1.x
+
+**Update your JSONL:**
+```jsonl
+// Remove test_run_date field
+{"timestamp": "2025-10-26T14:30:00Z", "model": "gpt-4", ...}
+```
+
+**Multiple files now supported:**
+```bash
+./goevals baseline.jsonl experimental.jsonl  # Compare runs
+```
+
+For detailed technical documentation, see:
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Technical deep dive
+- [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) - Design decisions
+- [docs/v2.0-RELEASE-NOTES.md](docs/v2.0-RELEASE-NOTES.md) - Full release story
+
 ## [0.1.0] - 2025-10-24
 
 **First public release!** 🐹

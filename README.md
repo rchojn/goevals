@@ -9,6 +9,7 @@
   [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
   ![GoEvals Dashboard](assets/screenshot.png)
+  ![GoEvals Details](assets/screenshot2.png)
 </div>
 
 ---

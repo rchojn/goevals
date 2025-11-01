@@ -509,7 +509,13 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
         <footer>
             Built with Go stdlib + HTML + common sense 🐹<br>
             <a href="https://github.com/rchojn/goevals" style="color: #3b82f6;">github.com/rchojn/goevals</a><br>
-            <span id="refresh-indicator" style="color: #999; font-size: 0.8rem; margin-top: 0.5rem; display: inline-block;">Auto-refresh: 10s</span>
+            <div style="margin-top: 0.75rem; display: flex; align-items: center; justify-content: center; gap: 1rem;">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.875rem; color: #666;">
+                    <input type="checkbox" id="autorefresh-toggle" checked style="cursor: pointer;">
+                    <span>Auto-refresh (5s)</span>
+                </label>
+                <span id="refresh-indicator" style="color: #999; font-size: 0.8rem;">Enabled</span>
+            </div>
         </footer>
     </div>
     <script>
@@ -517,8 +523,39 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
         let lastTimestamp = new Date().toISOString();
         let pollInterval = 5000; // 5 seconds
         const indicator = document.getElementById('refresh-indicator');
+        const toggleCheckbox = document.getElementById('autorefresh-toggle');
+
+        // Load autorefresh preference from localStorage (default: enabled)
+        let autoRefreshEnabled = localStorage.getItem('autorefresh') !== 'false';
+        toggleCheckbox.checked = autoRefreshEnabled;
+
+        // Update indicator based on state
+        function updateIndicator() {
+            if (!autoRefreshEnabled) {
+                indicator.textContent = 'Disabled';
+                indicator.style.color = '#999';
+            } else {
+                indicator.textContent = 'Enabled';
+                indicator.style.color = '#999';
+            }
+        }
+        updateIndicator();
+
+        // Toggle handler
+        toggleCheckbox.addEventListener('change', function() {
+            autoRefreshEnabled = this.checked;
+            localStorage.setItem('autorefresh', autoRefreshEnabled);
+            updateIndicator();
+            if (autoRefreshEnabled) {
+                pollForUpdates(); // Poll immediately when re-enabled
+            }
+        });
 
         async function pollForUpdates() {
+            if (!autoRefreshEnabled) {
+                return; // Skip if disabled
+            }
+
             try {
                 const response = await fetch('/api/evals/since?ts=' + encodeURIComponent(lastTimestamp));
                 if (!response.ok) {
@@ -541,7 +578,7 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
             }
         }
 
-        // Poll every 5 seconds
+        // Poll every 5 seconds (but function checks autoRefreshEnabled)
         setInterval(pollForUpdates, pollInterval);
 
         // Initial poll after 5 seconds

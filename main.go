@@ -22,6 +22,85 @@ type EvalResult struct {
 	Scores         ScoreBreakdown `json:"scores"`
 	ResponseTimeMS int64          `json:"response_time_ms"`
 	Metadata       map[string]any `json:"metadata,omitempty"` // Can include run_id, session_id, etc.
+	CustomFields   map[string]any `json:"-"`                  // Captures any extra top-level fields dynamically
+}
+
+// Known field names for EvalResult
+var knownFields = map[string]bool{
+	"timestamp":        true,
+	"model":            true,
+	"test_id":          true,
+	"question":         true,
+	"response":         true,
+	"expected":         true,
+	"scores":           true,
+	"response_time_ms": true,
+	"metadata":         true,
+}
+
+// UnmarshalJSON custom unmarshaler to capture custom top-level fields
+func (er *EvalResult) UnmarshalJSON(data []byte) error {
+	// Create temporary struct with same fields but no custom unmarshaler
+	type Alias EvalResult
+	aux := &struct {
+		*Alias
+	}{
+		Alias: (*Alias)(er),
+	}
+
+	// First unmarshal into map to get all fields
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	// Unmarshal known fields into struct
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+
+	// Capture all unknown fields as custom fields
+	er.CustomFields = make(map[string]any)
+	for key, value := range raw {
+		if !knownFields[key] {
+			er.CustomFields[key] = value
+		}
+	}
+
+	return nil
+}
+
+// MarshalJSON custom marshaler to include custom fields in API responses
+func (er EvalResult) MarshalJSON() ([]byte, error) {
+	// Create map with all known fields
+	result := make(map[string]interface{})
+	result["timestamp"] = er.Timestamp
+	result["model"] = er.Model
+	result["test_id"] = er.TestID
+
+	if er.Question != "" {
+		result["question"] = er.Question
+	}
+	if er.Response != "" {
+		result["response"] = er.Response
+	}
+	if er.Expected != "" {
+		result["expected"] = er.Expected
+	}
+
+	result["scores"] = er.Scores
+	result["response_time_ms"] = er.ResponseTimeMS
+
+	if er.Metadata != nil {
+		result["metadata"] = er.Metadata
+	}
+
+	// Add all custom fields
+	for key, value := range er.CustomFields {
+		result[key] = value
+	}
+
+	return json.Marshal(result)
 }
 
 // ScoreBreakdown contains all individual scores
@@ -58,14 +137,30 @@ func (sb *ScoreBreakdown) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON custom marshaler to include custom scores in API responses
+func (sb ScoreBreakdown) MarshalJSON() ([]byte, error) {
+	// Build a map with combined + all custom scores
+	result := make(map[string]float64)
+	result["combined"] = sb.Combined
+
+	// Add all custom scores
+	for key, value := range sb.Custom {
+		result[key] = value
+	}
+
+	return json.Marshal(result)
+}
+
 // DashboardData holds aggregated stats for the dashboard
 type DashboardData struct {
-	TotalTests   int
-	AvgScore     float64
-	Models       []string
-	Results      []EvalResult
-	ModelStats   map[string]ModelStat
-	CustomScores []string // Names of all custom score types found
+	TotalTests       int
+	AvgScore         float64
+	Models           []string
+	Results          []EvalResult
+	ModelStats       map[string]ModelStat
+	CustomScores     []string            // Names of all custom score types found
+	CustomFieldNames []string            // Names of all custom top-level fields found
+	CustomFieldTypes map[string]string   // field_name -> type (string, number, bool)
 }
 
 // ModelStat holds statistics for a single model
@@ -77,6 +172,7 @@ type ModelStat struct {
 	MaxScore     float64
 	CustomScores map[string]float64 // Average for each custom score type
 	AvgTimeMS    float64
+	CustomFields map[string]string  // Custom field values (showing first unique value found)
 }
 
 // ParseJSONL reads and parses a JSONL file
@@ -113,22 +209,26 @@ func ParseJSONL(filename string) ([]EvalResult, error) {
 // CalculateStats computes aggregate statistics from eval results
 func CalculateStats(results []EvalResult) DashboardData {
 	data := DashboardData{
-		TotalTests: len(results),
-		Results:    results,
-		ModelStats: make(map[string]ModelStat),
+		TotalTests:       len(results),
+		Results:          results,
+		ModelStats:       make(map[string]ModelStat),
+		CustomFieldTypes: make(map[string]string),
 	}
 
 	if len(results) == 0 {
 		return data
 	}
 
-	// Track unique models and custom score types
+	// Track unique models, custom score types, and custom fields
 	modelSet := make(map[string]bool)
 	customScoreSet := make(map[string]bool)
+	customFieldSet := make(map[string]bool)
 	modelScores := make(map[string][]float64)
 	modelTimes := make(map[string][]float64)
 	// modelCustomScores[model][scoreType] = []scores
 	modelCustomScores := make(map[string]map[string][]float64)
+	// modelCustomFields[model][fieldName] = value (first seen value for that model)
+	modelCustomFields := make(map[string]map[string]string)
 	totalScore := 0.0
 
 	for _, result := range results {
@@ -149,6 +249,31 @@ func CalculateStats(results []EvalResult) DashboardData {
 				scoreValue,
 			)
 		}
+
+		// Collect all custom fields
+		if modelCustomFields[result.Model] == nil {
+			modelCustomFields[result.Model] = make(map[string]string)
+		}
+		for fieldName, fieldValue := range result.CustomFields {
+			customFieldSet[fieldName] = true
+
+			// Store first value seen for this model+field (or most common pattern)
+			if _, exists := modelCustomFields[result.Model][fieldName]; !exists {
+				modelCustomFields[result.Model][fieldName] = fmt.Sprintf("%v", fieldValue)
+			}
+
+			// Detect field type from first occurrence
+			if _, exists := data.CustomFieldTypes[fieldName]; !exists {
+				switch fieldValue.(type) {
+				case float64:
+					data.CustomFieldTypes[fieldName] = "number"
+				case bool:
+					data.CustomFieldTypes[fieldName] = "bool"
+				default:
+					data.CustomFieldTypes[fieldName] = "string"
+				}
+			}
+		}
 	}
 
 	// Calculate overall average
@@ -165,6 +290,12 @@ func CalculateStats(results []EvalResult) DashboardData {
 		data.CustomScores = append(data.CustomScores, scoreType)
 	}
 	sort.Strings(data.CustomScores)
+
+	// Get sorted custom field names
+	for fieldName := range customFieldSet {
+		data.CustomFieldNames = append(data.CustomFieldNames, fieldName)
+	}
+	sort.Strings(data.CustomFieldNames)
 
 	// Calculate per-model stats
 	for _, model := range data.Models {
@@ -207,6 +338,14 @@ func CalculateStats(results []EvalResult) DashboardData {
 			}
 		}
 
+		// Get custom field values for this model
+		customFields := make(map[string]string)
+		if modelFields, exists := modelCustomFields[model]; exists {
+			for fieldName, fieldValue := range modelFields {
+				customFields[fieldName] = fieldValue
+			}
+		}
+
 		data.ModelStats[model] = ModelStat{
 			Model:        model,
 			TestCount:    len(scores),
@@ -215,6 +354,7 @@ func CalculateStats(results []EvalResult) DashboardData {
 			MaxScore:     max,
 			CustomScores: customAvgs,
 			AvgTimeMS:    timeSum / float64(len(times)),
+			CustomFields: customFields,
 		}
 	}
 
@@ -239,10 +379,13 @@ func reloadData() error {
 	}
 
 	if len(allResults) == 0 {
-		return fmt.Errorf("no valid results found in any file")
+		log.Println("Warning: No results yet - dashboard will show empty until first eval")
+		// Initialize with empty data instead of crashing
+		evalData = CalculateStats([]EvalResult{})
+	} else {
+		log.Printf("Loaded %d eval results total", len(allResults))
+		evalData = CalculateStats(allResults)
 	}
-
-	evalData = CalculateStats(allResults)
 	return nil
 }
 
@@ -282,20 +425,21 @@ func main() {
 	}
 
 	if len(allResults) == 0 {
-		log.Fatal("Error: No valid results found in any file")
+		log.Println("Warning: No results yet - starting with empty dashboard")
+		evalData = CalculateStats([]EvalResult{})
+	} else {
+		log.Printf("Loaded %d eval results total", len(allResults))
+		evalData = CalculateStats(allResults)
+		log.Printf("Models found: %v", evalData.Models)
+		log.Printf("Custom scores found: %v", evalData.CustomScores)
+		log.Printf("Custom fields found: %v", evalData.CustomFieldNames)
+		log.Printf("Overall avg score: %.2f", evalData.AvgScore)
 	}
-
-	log.Printf("Loaded %d eval results total", len(allResults))
-
-	// Calculate stats
-	evalData = CalculateStats(allResults)
-	log.Printf("Models found: %v", evalData.Models)
-	log.Printf("Custom scores found: %v", evalData.CustomScores)
-	log.Printf("Overall avg score: %.2f", evalData.AvgScore)
 
 	// Setup HTTP handlers
 	http.HandleFunc("/", dashboardHandler)
 	http.HandleFunc("/tests", testsHandler)
+	http.HandleFunc("/api/evals", evalsAPIHandler)         // Full data API endpoint
 	http.HandleFunc("/api/evals/since", evalsSinceHandler) // Smart polling endpoint
 	http.HandleFunc("/health", healthHandler)
 
@@ -472,14 +616,17 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
                 <thead>
                     <tr>
                         <th onclick="sortTable(0)">Model</th>
-                        <th onclick="sortTable(1)">Tests</th>
-                        <th onclick="sortTable(2)" class="sorted-desc">Avg Score</th>
-                        {{ range $idx, $score := $.CustomScores }}
-                        <th onclick="sortTable({{ add 3 $idx }})">{{ $score }}</th>
+                        {{ range $idx, $fieldName := $.CustomFieldNames }}
+                        <th onclick="sortTable({{ add 1 $idx }})">{{ $fieldName }}</th>
                         {{ end }}
-                        <th onclick="sortTable({{ add 3 (len $.CustomScores) }})">Min</th>
-                        <th onclick="sortTable({{ add 4 (len $.CustomScores) }})">Max</th>
-                        <th onclick="sortTable({{ add 5 (len $.CustomScores) }})">Avg Time (ms)</th>
+                        <th onclick="sortTable({{ add 1 (len $.CustomFieldNames) }})">Tests</th>
+                        <th onclick="sortTable({{ add 2 (len $.CustomFieldNames) }})" class="sorted-desc">Avg Score</th>
+                        {{ range $idx, $score := $.CustomScores }}
+                        <th onclick="sortTable({{ add 3 (add (len $.CustomFieldNames) $idx) }})">{{ $score }}</th>
+                        {{ end }}
+                        <th onclick="sortTable({{ add 3 (add (len $.CustomFieldNames) (len $.CustomScores)) }})">Min</th>
+                        <th onclick="sortTable({{ add 4 (add (len $.CustomFieldNames) (len $.CustomScores)) }})">Max</th>
+                        <th onclick="sortTable({{ add 5 (add (len $.CustomFieldNames) (len $.CustomScores)) }})">Avg Time (ms)</th>
                     </tr>
                 </thead>
                 <tbody id="table-body">
@@ -487,6 +634,10 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
                     {{ $stat := index $.ModelStats . }}
                     <tr style="cursor: pointer;" onclick="window.location='/tests?model={{ $stat.Model }}'">
                         <td><strong>{{ $stat.Model }}</strong></td>
+                        {{ range $fieldName := $.CustomFieldNames }}
+                        {{ $fieldValue := index $stat.CustomFields $fieldName }}
+                        <td>{{ if $fieldValue }}{{ $fieldValue }}{{ else }}-{{ end }}</td>
+                        {{ end }}
                         <td>{{ $stat.TestCount }}</td>
                         <td class="score {{ if ge $stat.AvgScore 0.8 }}score-good{{ else if ge $stat.AvgScore 0.6 }}score-fair{{ else }}score-poor{{ end }}">
                             {{ printf "%.2f" $stat.AvgScore }}
@@ -626,7 +777,15 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
         }
 
         // Default sort by Avg Score descending
-        sortDirection[2] = 'desc';
+        // Column index = 1 (for "Model") + customFieldCount + 1 (for "Tests") = 2 + customFieldCount
+        // But since we're sorting by column 2 + customFieldCount, we need to find it dynamically
+        // For now, find the "Avg Score" column which has class="sorted-desc"
+        const headers = document.querySelectorAll('#comparison-table th');
+        headers.forEach((th, idx) => {
+            if (th.classList.contains('sorted-desc')) {
+                sortDirection[idx] = 'desc';
+            }
+        });
     </script>
 </body>
 </html>`
@@ -959,6 +1118,45 @@ func testsHandler(w http.ResponseWriter, r *http.Request) {
 	if err := t.Execute(w, filteredResults); err != nil {
 		// Don't call http.Error here - headers already sent by Execute
 		log.Printf("Template error: %v", err)
+	}
+}
+
+// evalsAPIHandler returns all eval results and dashboard data as JSON
+func evalsAPIHandler(w http.ResponseWriter, r *http.Request) {
+	// Reload latest data
+	if err := reloadData(); err != nil {
+		http.Error(w, fmt.Sprintf("Error reloading data: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Optional filters
+	modelFilter := r.URL.Query().Get("model")
+
+	// Prepare response with full dashboard data
+	response := struct {
+		DashboardData
+		// Add custom scores serialization for API
+		ResultsWithScores []EvalResult `json:"results"`
+	}{
+		DashboardData:     evalData,
+		ResultsWithScores: evalData.Results,
+	}
+
+	// Apply model filter if specified
+	if modelFilter != "" {
+		var filtered []EvalResult
+		for _, result := range evalData.Results {
+			if result.Model == modelFilter {
+				filtered = append(filtered, result)
+			}
+		}
+		response.ResultsWithScores = filtered
+	}
+
+	// Return as JSON
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Error encoding JSON: %v", err)
 	}
 }
 

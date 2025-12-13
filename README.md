@@ -257,7 +257,9 @@ See [CHANGELOG.md](CHANGELOG.md) for recent updates.
 
 🐛 Report bugs or request features in [Issues](https://github.com/rchojn/goevals/issues)
 
-🔧 PRs welcome! Please open an issue first to discuss major changes.
+🔧 PRs welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+📚 Check out the [CHANGELOG.md](CHANGELOG.md) for recent updates.
 
 ---
 

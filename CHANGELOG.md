@@ -7,68 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-<!-- Features and improvements currently in development -->
-
-## [2.0.0] - 2025-10-26
-
-**Major release** - Smart polling, sortable columns, and multiple files support.
-
 ### Added
-- Smart polling endpoint `/api/evals/since` with 5-second refresh interval (no more flickering!)
-- Multiple JSONL files support - `./goevals file1.jsonl file2.jsonl file3.jsonl`
-- Sortable columns with visual indicators (⇅, ▲, ▼) - click any header to sort
-- Automatic custom score detection from JSONL (framework-agnostic)
-- Visual refresh indicator showing last update time and connection status
-
-### Changed
-- Improved refresh strategy - 5s smart polling vs 10s full page reload
-- Simplified data model - use `timestamp` (ISO8601) for all time tracking
-
-### Removed
-- **BREAKING**: `test_run_date` field removed (use `timestamp` instead)
+- CI/CD pipeline with GitHub Actions (#1)
+  - Cross-platform builds (Ubuntu, macOS, Windows)
+  - Multi-version Go testing (1.21, 1.22, 1.23, 1.24)
+  - Linting with golangci-lint
+  - Code coverage reporting (Linux only)
+- Pre-commit hooks for local development (#2)
+  - Automatic code formatting (gofmt)
+  - Dependency management (go mod tidy)
+  - Linting enforcement
+  - Commit message validation
+- Status badges in README (#4)
+  - CI build status
+  - Go Report Card
+- git-chglog configuration for automated changelog generation (#6)
+- CONTRIBUTING.md guide for contributors (#5)
+  - Development setup instructions
+  - Pre-commit hooks usage
+  - Conventional commits format
+  - Pull request process
+  - Code style and testing guidelines
 
 ### Fixed
-- Template rendering flickering during dashboard updates
-- Scroll position lost on page reload
-- Performance improvements for result filtering
+- CI test failures on Windows platform
+  - Added placeholder test file
+  - Disabled coverage generation on non-Linux platforms
 
-### Migration from v1.x
+### Changed
+- Updated Go version range to 1.21-1.24
 
-**Update your JSONL:**
-```jsonl
-// Remove test_run_date field
-{"timestamp": "2025-10-26T14:30:00Z", "model": "gpt-4", ...}
-```
-
-**Multiple files now supported:**
-```bash
-./goevals baseline.jsonl experimental.jsonl  # Compare runs
-```
-
-For detailed technical documentation, see:
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Technical deep dive
-- [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) - Design decisions
-- [docs/v2.0-RELEASE-NOTES.md](docs/v2.0-RELEASE-NOTES.md) - Full release story
+---
 
 ## [0.1.0] - 2025-10-24
 
-**First public release!** 🐹
+**First public release!**
 
 This is the initial MVP following AnthonyGG's "boring technology" philosophy.
 
 ### Added
-- Project mascot (`assets/goevals.png`) - Gopher with evals theme 🐹
-- Dashboard screenshot in README (`assets/screenshot.png`)
+- Project mascot (assets/goevals.png) - Gopher with evals theme
+- Dashboard screenshot in README (assets/screenshot.png)
 - CHANGELOG.md following Keep a Changelog format
 - Initial MVP dashboard with Go stdlib
-- JSONL parser with streaming support (`bufio.Scanner`)
+- JSONL parser with streaming support (bufio.Scanner)
 - Model comparison table (avg score, min/max, response time)
-- Health check endpoint (`/health`)
+- Health check endpoint (/health)
 - Aggregate statistics (total tests, models tested, average score)
 - Auto-calculated color-coded scores (green >0.8, yellow 0.6-0.8, red <0.6)
 - Support for standard JSONL eval format (OpenAI, gai/eval compatible)
 - Embedded HTML template with inline CSS
-- Gopher-themed branding (🐹 instead of 🚀)
+- Gopher-themed branding
 - MIT License
 
 ### Technical Details
@@ -94,75 +83,7 @@ This is the initial MVP following AnthonyGG's "boring technology" philosophy.
 
 ## Planned Features
 
-### v0.2.0 - Essential CLI (Priority: HIGH for SafeReader)
-**Goal:** Make it usable for daily SafeReader eval workflow
+See [GitHub Issues](https://github.com/rchojn/goevals/issues) for planned enhancements.
 
-- [ ] **CLI flags** - `--port`, `--file` for better control
-- [ ] **Watch mode** - Auto-reload when evals.jsonl changes (instant feedback!)
-- [ ] **Test detail view** - Click model row → see individual test results
-- [ ] **Filter controls** - Filter by model, test_id, date range
-- [ ] **Error handling** - Better messages when JSONL is malformed
-
-**Why this first?**
-- Watch mode = instant feedback during SafeReader testing
-- Drill-down = quickly find which tests failed and why
-- Filters = focus on specific model/test when debugging
-
-**Use case:**
-```bash
-# Run in background, auto-updates as tests complete
-goevals --watch --port 3000 ../safereader/desktop/tests/evals.jsonl
-
-# In another terminal: run SafeReader tests
-go test -run TestEvalRAGModels -v
-
-# Browser auto-refreshes with new results!
-```
-
-### v0.3.0 - Visualization (Priority: MEDIUM)
-**Goal:** Visual comparison of models and trends
-
-- [ ] **Chart.js integration** - Score distribution histogram
-- [ ] **Timeline view** - Score trends over time (detect regression!)
-- [ ] **Scatter plot** - Score vs response time (find sweet spot)
-- [ ] **Keyword breakdown** - See which keywords are commonly missed
-
-**Why this?**
-- Visual comparison easier than reading tables
-- Trend detection for SafeReader improvements
-- Find performance/quality tradeoffs
-
-### v0.4.0 - Collaboration (Priority: LOW)
-**Goal:** Share results with team
-
-- [ ] **Export HTML** - Static report for sharing
-- [ ] **Compare multiple files** - Before/after prompt changes
-- [ ] **JSON export** - Processed stats for external tools
-- [ ] **CLI stats mode** - Quick summary without browser
-
-### v0.5.0 - Polish & UX (Priority: LOW)
-**Goal:** Better developer experience
-
-- [ ] Migrate to `a-h/templ` (type-safe templates)
-- [ ] Add htmx for dynamic updates (no page reload)
-- [ ] Tailwind CSS styling
-- [ ] Responsive mobile layout
-
-### v1.0.0 - Production Ready (Priority: FUTURE)
-**Goal:** Public release with confidence
-
-- [ ] Comprehensive test suite (tests for the test dashboard!)
-- [ ] CI/CD pipeline (GitHub Actions)
-- [ ] Binary releases (Linux, macOS, Windows)
-- [ ] Docker image (optional)
-- [ ] Documentation site (GitHub Pages)
-
----
-
-## Contributors
-
-- [@rchojn](https://github.com/rchojn) - Creator & Maintainer
-
----
-
-**Note**: This project follows the "build in public" philosophy. All development is transparent and community-driven.
+[Unreleased]: https://github.com/rchojn/goevals/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/rchojn/goevals/releases/tag/v0.1.0

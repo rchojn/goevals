@@ -1,0 +1,5 @@
+# Code owners for GoEvals
+# This file defines who owns the code and must approve changes
+
+# Default owner for all files
+* @rchojn

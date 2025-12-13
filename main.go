@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strconv"
+	"strings"
 )
 
 // EvalResult represents a single evaluation result from JSONL
@@ -22,20 +24,39 @@ type EvalResult struct {
 	Scores         ScoreBreakdown `json:"scores"`
 	ResponseTimeMS int64          `json:"response_time_ms"`
 	Metadata       map[string]any `json:"metadata,omitempty"` // Can include run_id, session_id, etc.
-	CustomFields   map[string]any `json:"-"`                  // Captures any extra top-level fields dynamically
+
+	// LLM-as-Judge fields
+	JudgeModel             string `json:"judge_model,omitempty"`
+	JudgeFactualReasoning  string `json:"judge_factual_reasoning,omitempty"`
+	JudgeFaithfulReasoning string `json:"judge_faithful_reasoning,omitempty"`
+	JudgeContextReasoning  string `json:"judge_context_reasoning,omitempty"`
+
+	CustomFields map[string]any `json:"-"` // Captures any extra top-level fields dynamically
 }
 
 // Known field names for EvalResult
 var knownFields = map[string]bool{
-	"timestamp":        true,
-	"model":            true,
-	"test_id":          true,
-	"question":         true,
-	"response":         true,
-	"expected":         true,
-	"scores":           true,
-	"response_time_ms": true,
-	"metadata":         true,
+	"timestamp":                true,
+	"model":                    true,
+	"test_id":                  true,
+	"question":                 true,
+	"response":                 true,
+	"expected":                 true,
+	"scores":                   true,
+	"response_time_ms":         true,
+	"metadata":                 true,
+	"judge_model":              true,
+	"judge_factual_reasoning":  true,
+	"judge_faithful_reasoning": true,
+	"judge_context_reasoning":  true,
+	"test_run_date":            true,
+	"embedding_model":          true,
+	"chunk_size":               true,
+	"chunk_overlap":            true,
+	"top_k":                    true,
+	"retrieval_method":         true,
+	"temperature":              true,
+	"question_id":              true,
 }
 
 // UnmarshalJSON custom unmarshaler to capture custom top-level fields
@@ -158,21 +179,52 @@ type DashboardData struct {
 	Models           []string
 	Results          []EvalResult
 	ModelStats       map[string]ModelStat
-	CustomScores     []string            // Names of all custom score types found
-	CustomFieldNames []string            // Names of all custom top-level fields found
-	CustomFieldTypes map[string]string   // field_name -> type (string, number, bool)
+	CustomScores     []string          // Names of all custom score types found
+	CustomFieldNames []string          // Names of all custom top-level fields found
+	CustomFieldTypes map[string]string // field_name -> type (string, number, bool)
 }
 
 // ModelStat holds statistics for a single model
 type ModelStat struct {
-	Model        string
-	TestCount    int
-	AvgScore     float64
-	MinScore     float64
-	MaxScore     float64
-	CustomScores map[string]float64 // Average for each custom score type
-	AvgTimeMS    float64
-	CustomFields map[string]string  // Custom field values (showing first unique value found)
+	Model           string // Full config key (for internal use)
+	ActualModelName string // Just the model name (for display)
+	TestCount       int
+	AvgScore        float64
+	MinScore        float64
+	MaxScore        float64
+	CustomScores    map[string]float64 // Average for each custom score type
+	AvgTimeMS       float64
+	CustomFields    map[string]string // Custom field values (showing first unique value found)
+}
+
+// buildConfigKey creates a unique key for aggregation based on model + RAG config params
+// This ensures that tests with the same model but different params (chunk_size, etc.) are grouped separately
+// EXCLUDES: question_id, test_run_date (test metadata, not config parameters)
+func buildConfigKey(result EvalResult) string {
+	// Start with model name
+	key := result.Model
+
+	// Fields to exclude from aggregation key (test metadata, not RAG config)
+	excludedFields := map[string]bool{
+		"question_id":   true, // Question identifier - tests should be aggregated across all questions
+		"test_run_date": true, // Test execution date - not a configuration parameter
+	}
+
+	// Add only RAG configuration fields in sorted order for consistency
+	var fields []string
+	for fieldName := range result.CustomFields {
+		if !excludedFields[fieldName] {
+			fields = append(fields, fieldName)
+		}
+	}
+	sort.Strings(fields)
+
+	for _, fieldName := range fields {
+		value := result.CustomFields[fieldName]
+		key += fmt.Sprintf("|%s=%v", fieldName, value)
+	}
+
+	return key
 }
 
 // ParseJSONL reads and parses a JSONL file
@@ -219,47 +271,49 @@ func CalculateStats(results []EvalResult) DashboardData {
 		return data
 	}
 
-	// Track unique models, custom score types, and custom fields
-	modelSet := make(map[string]bool)
+	// Track unique configs, custom score types, and custom fields
+	// Now aggregating by full config (model + all custom fields) instead of just model
+	configSet := make(map[string]bool)
 	customScoreSet := make(map[string]bool)
 	customFieldSet := make(map[string]bool)
-	modelScores := make(map[string][]float64)
-	modelTimes := make(map[string][]float64)
-	// modelCustomScores[model][scoreType] = []scores
-	modelCustomScores := make(map[string]map[string][]float64)
-	// modelCustomFields[model][fieldName] = value (first seen value for that model)
-	modelCustomFields := make(map[string]map[string]string)
+	configScores := make(map[string][]float64)
+	configTimes := make(map[string][]float64)
+	// configCustomScores[configKey][scoreType] = []scores
+	configCustomScores := make(map[string]map[string][]float64)
+	// configCustomFields[configKey][fieldName] = value (first seen value for that config)
+	configCustomFields := make(map[string]map[string]string)
 	totalScore := 0.0
 
 	for _, result := range results {
-		modelSet[result.Model] = true
+		configKey := buildConfigKey(result)
+		configSet[configKey] = true
 		totalScore += result.Scores.Combined
 
-		modelScores[result.Model] = append(modelScores[result.Model], result.Scores.Combined)
-		modelTimes[result.Model] = append(modelTimes[result.Model], float64(result.ResponseTimeMS))
+		configScores[configKey] = append(configScores[configKey], result.Scores.Combined)
+		configTimes[configKey] = append(configTimes[configKey], float64(result.ResponseTimeMS))
 
 		// Collect all custom scores
-		if modelCustomScores[result.Model] == nil {
-			modelCustomScores[result.Model] = make(map[string][]float64)
+		if configCustomScores[configKey] == nil {
+			configCustomScores[configKey] = make(map[string][]float64)
 		}
 		for scoreType, scoreValue := range result.Scores.Custom {
 			customScoreSet[scoreType] = true
-			modelCustomScores[result.Model][scoreType] = append(
-				modelCustomScores[result.Model][scoreType],
+			configCustomScores[configKey][scoreType] = append(
+				configCustomScores[configKey][scoreType],
 				scoreValue,
 			)
 		}
 
 		// Collect all custom fields
-		if modelCustomFields[result.Model] == nil {
-			modelCustomFields[result.Model] = make(map[string]string)
+		if configCustomFields[configKey] == nil {
+			configCustomFields[configKey] = make(map[string]string)
 		}
 		for fieldName, fieldValue := range result.CustomFields {
 			customFieldSet[fieldName] = true
 
-			// Store first value seen for this model+field (or most common pattern)
-			if _, exists := modelCustomFields[result.Model][fieldName]; !exists {
-				modelCustomFields[result.Model][fieldName] = fmt.Sprintf("%v", fieldValue)
+			// Store first value seen for this config+field (or most common pattern)
+			if _, exists := configCustomFields[configKey][fieldName]; !exists {
+				configCustomFields[configKey][fieldName] = fmt.Sprintf("%v", fieldValue)
 			}
 
 			// Detect field type from first occurrence
@@ -279,9 +333,9 @@ func CalculateStats(results []EvalResult) DashboardData {
 	// Calculate overall average
 	data.AvgScore = totalScore / float64(len(results))
 
-	// Get sorted model list
-	for model := range modelSet {
-		data.Models = append(data.Models, model)
+	// Get sorted config list (configs, not just models)
+	for configKey := range configSet {
+		data.Models = append(data.Models, configKey)
 	}
 	sort.Strings(data.Models)
 
@@ -297,10 +351,10 @@ func CalculateStats(results []EvalResult) DashboardData {
 	}
 	sort.Strings(data.CustomFieldNames)
 
-	// Calculate per-model stats
-	for _, model := range data.Models {
-		scores := modelScores[model]
-		times := modelTimes[model]
+	// Calculate per-config stats
+	for _, configKey := range data.Models {
+		scores := configScores[configKey]
+		times := configTimes[configKey]
 
 		if len(scores) == 0 {
 			continue
@@ -328,7 +382,7 @@ func CalculateStats(results []EvalResult) DashboardData {
 
 		// Calculate average for each custom score type
 		customAvgs := make(map[string]float64)
-		for scoreType, scoreValues := range modelCustomScores[model] {
+		for scoreType, scoreValues := range configCustomScores[configKey] {
 			if len(scoreValues) > 0 {
 				customSum := 0.0
 				for _, v := range scoreValues {
@@ -338,23 +392,30 @@ func CalculateStats(results []EvalResult) DashboardData {
 			}
 		}
 
-		// Get custom field values for this model
+		// Get custom field values for this config
 		customFields := make(map[string]string)
-		if modelFields, exists := modelCustomFields[model]; exists {
-			for fieldName, fieldValue := range modelFields {
+		if configFields, exists := configCustomFields[configKey]; exists {
+			for fieldName, fieldValue := range configFields {
 				customFields[fieldName] = fieldValue
 			}
 		}
 
-		data.ModelStats[model] = ModelStat{
-			Model:        model,
-			TestCount:    len(scores),
-			AvgScore:     sum / float64(len(scores)),
-			MinScore:     min,
-			MaxScore:     max,
-			CustomScores: customAvgs,
-			AvgTimeMS:    timeSum / float64(len(times)),
-			CustomFields: customFields,
+		// Extract actual model name from config key (before first pipe)
+		actualModelName := configKey
+		if pipeIndex := strings.Index(configKey, "|"); pipeIndex != -1 {
+			actualModelName = configKey[:pipeIndex]
+		}
+
+		data.ModelStats[configKey] = ModelStat{
+			Model:           configKey,
+			ActualModelName: actualModelName,
+			TestCount:       len(scores),
+			AvgScore:        sum / float64(len(scores)),
+			MinScore:        min,
+			MaxScore:        max,
+			CustomScores:    customAvgs,
+			AvgTimeMS:       timeSum / float64(len(times)),
+			CustomFields:    customFields,
 		}
 	}
 
@@ -568,6 +629,42 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
         td {
             color: #333;
         }
+        /* Sticky/Frozen columns for Model + Embedding */
+        th:nth-child(1), td:nth-child(1) {
+            position: sticky;
+            left: 0;
+            background: white;
+            z-index: 10;
+            box-shadow: 2px 0 4px rgba(0,0,0,0.05);
+            min-width: 200px;
+            max-width: 200px;
+        }
+        th:nth-child(2), td:nth-child(2) {
+            position: sticky;
+            left: 200px;
+            background: white;
+            z-index: 10;
+            box-shadow: 2px 0 4px rgba(0,0,0,0.05);
+            min-width: 150px;
+            max-width: 150px;
+        }
+        th:nth-child(1) {
+            background: #f9f9f9;
+            z-index: 11;
+        }
+        th:nth-child(2) {
+            background: #f9f9f9;
+            z-index: 11;
+        }
+        /* Column widths */
+        th:nth-child(3), td:nth-child(3) { min-width: 100px; max-width: 100px; } /* Combined Score */
+        th:nth-child(4), td:nth-child(4) { min-width: 80px; max-width: 80px; }   /* Top_K */
+        th:nth-child(5), td:nth-child(5) { min-width: 100px; max-width: 100px; } /* Chunk_Size */
+        th:nth-child(6), td:nth-child(6) { min-width: 100px; max-width: 100px; } /* Chunk_Overlap */
+        th:nth-child(7), td:nth-child(7) { min-width: 120px; max-width: 120px; } /* Retrieval */
+        th:nth-child(8), td:nth-child(8) { min-width: 80px; max-width: 80px; }   /* Temperature */
+        /* Score columns - smaller width */
+        .score-cell { min-width: 90px; max-width: 90px; text-align: center; font-weight: 600; }
         tbody tr {
             transition: background-color 0.2s;
         }
@@ -612,42 +709,44 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
 
         <div class="models-section">
             <h2>Model Comparison</h2>
+            <div style="overflow-x: auto;">
             <table id="comparison-table">
                 <thead>
                     <tr>
                         <th onclick="sortTable(0)">Model</th>
-                        {{ range $idx, $fieldName := $.CustomFieldNames }}
-                        <th onclick="sortTable({{ add 1 $idx }})">{{ $fieldName }}</th>
-                        {{ end }}
-                        <th onclick="sortTable({{ add 1 (len $.CustomFieldNames) }})">Tests</th>
-                        <th onclick="sortTable({{ add 2 (len $.CustomFieldNames) }})" class="sorted-desc">Avg Score</th>
+                        <th onclick="sortTable(1)">Embedding</th>
+                        <th onclick="sortTable(2)" class="sorted-desc">Combined</th>
+                        <th onclick="sortTable(3)">Top K</th>
+                        <th onclick="sortTable(4)">Chunk Size</th>
+                        <th onclick="sortTable(5)">Chunk Overlap</th>
+                        <th onclick="sortTable(6)">Retrieval</th>
+                        <th onclick="sortTable(7)">Temp</th>
                         {{ range $idx, $score := $.CustomScores }}
-                        <th onclick="sortTable({{ add 3 (add (len $.CustomFieldNames) $idx) }})">{{ $score }}</th>
+                        <th onclick="sortTable({{ add 8 $idx }})" class="score-cell">{{ $score }}</th>
                         {{ end }}
-                        <th onclick="sortTable({{ add 3 (add (len $.CustomFieldNames) (len $.CustomScores)) }})">Min</th>
-                        <th onclick="sortTable({{ add 4 (add (len $.CustomFieldNames) (len $.CustomScores)) }})">Max</th>
-                        <th onclick="sortTable({{ add 5 (add (len $.CustomFieldNames) (len $.CustomScores)) }})">Avg Time (ms)</th>
+                        <th onclick="sortTable({{ add 8 (len $.CustomScores) }})">Tests</th>
+                        <th onclick="sortTable({{ add 9 (len $.CustomScores) }})">Min</th>
+                        <th onclick="sortTable({{ add 10 (len $.CustomScores) }})">Max</th>
+                        <th onclick="sortTable({{ add 11 (len $.CustomScores) }})">Time (ms)</th>
                     </tr>
                 </thead>
                 <tbody id="table-body">
                     {{ range .Models }}
                     {{ $stat := index $.ModelStats . }}
                     <tr style="cursor: pointer;" onclick="window.location='/tests?model={{ $stat.Model }}'">
-                        <td><strong>{{ $stat.Model }}</strong></td>
-                        {{ range $fieldName := $.CustomFieldNames }}
-                        {{ $fieldValue := index $stat.CustomFields $fieldName }}
-                        <td>{{ if $fieldValue }}{{ $fieldValue }}{{ else }}-{{ end }}</td>
-                        {{ end }}
-                        <td>{{ $stat.TestCount }}</td>
-                        <td class="score {{ if ge $stat.AvgScore 0.8 }}score-good{{ else if ge $stat.AvgScore 0.6 }}score-fair{{ else }}score-poor{{ end }}">
-                            {{ printf "%.2f" $stat.AvgScore }}
-                        </td>
+                        <td><strong>{{ $stat.ActualModelName }}</strong></td>
+                        <td>{{ index $stat.CustomFields "embedding_model" }}</td>
+                        <td class="score {{ if ge $stat.AvgScore 0.7 }}score-good{{ else if ge $stat.AvgScore 0.5 }}score-fair{{ else }}score-poor{{ end }}">{{ printf "%.2f" $stat.AvgScore }}</td>
+                        <td>{{ index $stat.CustomFields "top_k" }}</td>
+                        <td>{{ index $stat.CustomFields "chunk_size" }}</td>
+                        <td>{{ index $stat.CustomFields "chunk_overlap" }}</td>
+                        <td>{{ index $stat.CustomFields "retrieval_method" }}</td>
+                        <td>{{ formatTemp (index $stat.CustomFields "temperature") }}</td>
                         {{ range $scoreType := $.CustomScores }}
                         {{ $customScore := index $stat.CustomScores $scoreType }}
-                        <td class="score {{ if ge $customScore 0.7 }}score-good{{ else if ge $customScore 0.4 }}score-fair{{ else }}score-poor{{ end }}">
-                            {{ printf "%.2f" $customScore }}
-                        </td>
+                        <td class="score-cell score {{ if ge $customScore 0.7 }}score-good{{ else if ge $customScore 0.4 }}score-fair{{ else }}score-poor{{ end }}">{{ printf "%.2f" $customScore }}</td>
                         {{ end }}
+                        <td>{{ $stat.TestCount }}</td>
                         <td>{{ printf "%.2f" $stat.MinScore }}</td>
                         <td>{{ printf "%.2f" $stat.MaxScore }}</td>
                         <td>{{ printf "%.0f" $stat.AvgTimeMS }}</td>
@@ -655,6 +754,7 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
                     {{ end }}
                 </tbody>
             </table>
+            </div>
         </div>
 
         <footer>
@@ -777,21 +877,36 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
         }
 
         // Default sort by Avg Score descending
-        // Column index = 1 (for "Model") + customFieldCount + 1 (for "Tests") = 2 + customFieldCount
-        // But since we're sorting by column 2 + customFieldCount, we need to find it dynamically
-        // For now, find the "Avg Score" column which has class="sorted-desc"
         const headers = document.querySelectorAll('#comparison-table th');
         headers.forEach((th, idx) => {
             if (th.classList.contains('sorted-desc')) {
                 sortDirection[idx] = 'desc';
             }
         });
+
     </script>
 </body>
 </html>`
 
 	funcMap := template.FuncMap{
 		"add": func(a, b int) int { return a + b },
+		"formatTemp": func(val interface{}) string {
+			if val == nil {
+				return "-"
+			}
+			switch v := val.(type) {
+			case float64:
+				return fmt.Sprintf("%.1f", v)
+			case string:
+				// Try to parse string as float
+				if parsed, err := strconv.ParseFloat(v, 64); err == nil {
+					return fmt.Sprintf("%.1f", parsed)
+				}
+				return v
+			default:
+				return fmt.Sprintf("%v", v)
+			}
+		},
 	}
 	t := template.Must(template.New("dashboard").Funcs(funcMap).Parse(tmpl))
 	if err := t.Execute(w, evalData); err != nil {
@@ -813,7 +928,9 @@ func testsHandler(w http.ResponseWriter, r *http.Request) {
 	var filteredResults []EvalResult
 	if modelFilter != "" || runIDFilter != "" {
 		for _, result := range evalData.Results {
-			matchModel := modelFilter == "" || result.Model == modelFilter
+			// Use buildConfigKey to match the full config key (model + params)
+			configKey := buildConfigKey(result)
+			matchModel := modelFilter == "" || configKey == modelFilter
 
 			// Extract run_id from metadata
 			runID := ""
@@ -1062,6 +1179,30 @@ func testsHandler(w http.ResponseWriter, r *http.Request) {
                 <div class="detail-section">
                     <div class="detail-label">✅ Expected Response</div>
                     <div class="detail-content">{{ $result.Expected }}</div>
+                </div>
+                {{ end }}
+
+                {{ if $result.JudgeModel }}
+                <div class="detail-section">
+                    <div class="detail-label">⚖️ Judge Evaluation ({{ $result.JudgeModel }})</div>
+                    {{ if $result.JudgeFactualReasoning }}
+                    <div style="margin-bottom: 0.75rem;">
+                        <div style="font-weight: 600; color: #6b7280; font-size: 0.75rem; margin-bottom: 0.25rem; text-transform: uppercase;">Factual Correctness</div>
+                        <div class="detail-content">{{ $result.JudgeFactualReasoning }}</div>
+                    </div>
+                    {{ end }}
+                    {{ if $result.JudgeFaithfulReasoning }}
+                    <div style="margin-bottom: 0.75rem;">
+                        <div style="font-weight: 600; color: #6b7280; font-size: 0.75rem; margin-bottom: 0.25rem; text-transform: uppercase;">Faithfulness</div>
+                        <div class="detail-content">{{ $result.JudgeFaithfulReasoning }}</div>
+                    </div>
+                    {{ end }}
+                    {{ if $result.JudgeContextReasoning }}
+                    <div style="margin-bottom: 0;">
+                        <div style="font-weight: 600; color: #6b7280; font-size: 0.75rem; margin-bottom: 0.25rem; text-transform: uppercase;">Context Relevance</div>
+                        <div class="detail-content">{{ $result.JudgeContextReasoning }}</div>
+                    </div>
+                    {{ end }}
                 </div>
                 {{ end }}
 

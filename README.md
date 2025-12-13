@@ -5,6 +5,8 @@
 
   **Fast, local-first LLM evaluation dashboard with smart refresh and sortable metrics**
 
+  [![CI](https://github.com/rchojn/goevals/actions/workflows/ci.yml/badge.svg)](https://github.com/rchojn/goevals/actions/workflows/ci.yml)
+  [![Go Report Card](https://goreportcard.com/badge/github.com/rchojn/goevals)](https://goreportcard.com/report/github.com/rchojn/goevals)
   [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://go.dev)
   [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 

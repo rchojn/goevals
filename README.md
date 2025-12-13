@@ -22,11 +22,11 @@ Most LLM evaluation dashboards are either **cloud-only** (vendor lock-in), **Pyt
 
 **GoEvals** is different:
 
-- ✅ **Single binary** - No Python, no Docker, no dependencies
-- ✅ **Local-first** - Your data stays on your machine
-- ✅ **Smart refresh** - Polls for new results without flickering (5s intervals)
-- ✅ **Fast** - Starts in <100ms, handles thousands of evals
-- ✅ **Simple** - Works with standard JSONL files
+- **Single binary** - No Python, no Docker, no dependencies
+- **Local-first** - Your data stays on your machine
+- **Smart refresh** - Polls for new results without flickering (5s intervals)
+- **Fast** - Starts in <100ms, handles thousands of evals
+- **Simple** - Works with standard JSONL files
 
 Built for **Go developers creating AI applications** who want a lightweight, hackable eval dashboard.
 
@@ -34,7 +34,7 @@ Built for **Go developers creating AI applications** who want a lightweight, hac
 
 ## Features
 
-### 🎯 Core Features
+### Core Features
 - **Smart polling** - Efficient updates without full page reload
 - **Sortable columns** - Click any header to sort by that metric
 - **Color-coded scores** - Instant visual feedback (green >0.7, yellow 0.4-0.7, red <0.4)
@@ -42,7 +42,7 @@ Built for **Go developers creating AI applications** who want a lightweight, hac
 - **Multiple files** - Load and compare results from multiple JSONL files
 - **Custom metrics** - Automatically detects and displays any custom score fields
 
-### 📊 Dashboard Views
+### Dashboard Views
 - **Overview** - Total tests, models tested, average scores
 - **Model comparison** - Side-by-side metrics with min/max/avg
 - **Test results** - Detailed view with full questions, responses, and scoring breakdowns
@@ -253,13 +253,13 @@ See [CHANGELOG.md](CHANGELOG.md) for recent updates.
 
 ## Contributing
 
-⭐ Star the repo if you find it useful!
+Star the repo if you find it useful!
 
-🐛 Report bugs or request features in [Issues](https://github.com/rchojn/goevals/issues)
+Report bugs or request features in [Issues](https://github.com/rchojn/goevals/issues).
 
-🔧 PRs welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Pull requests are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-📚 Check out the [CHANGELOG.md](CHANGELOG.md) for recent updates.
+Check out the [CHANGELOG.md](CHANGELOG.md) for recent updates.
 
 ---
 
@@ -280,7 +280,7 @@ Inspired by [evals.fun](https://evals.fun), [Langfuse](https://langfuse.com), an
 ---
 
 <div align="center">
-  <strong>Built with Go stdlib and common sense 🐹</strong>
+  <strong>Built with Go stdlib and common sense</strong>
   <br><br>
   <a href="https://github.com/rchojn/goevals">github.com/rchojn/goevals</a>
 </div>

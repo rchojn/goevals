@@ -1,0 +1,24 @@
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - errcheck      # Unchecked errors
+    - gosimple      # Code simplifications
+    - govet         # Go vet analysis
+    - staticcheck   # Staticcheck analysis
+    - unused        # Unused code
+    - gofmt         # Gofmt checks
+    - goimports     # Goimports checks
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - unused
+
+output:
+  formats:
+    - format: colored-line-number

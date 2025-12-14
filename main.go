@@ -857,12 +857,12 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
                         <th onclick="sortTable({{ add 2 $idx }})">{{ $fieldName }}</th>
                         {{ end }}
                         {{ range $idx, $score := $.CustomScores }}
-                        <th onclick="sortTable({{ add 2 (len $.CustomFieldNames) $idx }})" class="score-cell">{{ $score }}</th>
+                        <th onclick="sortTable({{ add (add 2 (len $.CustomFieldNames)) $idx }})" class="score-cell">{{ $score }}</th>
                         {{ end }}
-                        <th onclick="sortTable({{ add 2 (len $.CustomFieldNames) (len $.CustomScores) }})">Tests</th>
-                        <th onclick="sortTable({{ add 3 (len $.CustomFieldNames) (len $.CustomScores) }})">Min</th>
-                        <th onclick="sortTable({{ add 4 (len $.CustomFieldNames) (len $.CustomScores) }})">Max</th>
-                        <th onclick="sortTable({{ add 5 (len $.CustomFieldNames) (len $.CustomScores) }})">Time (ms)</th>
+                        <th onclick="sortTable({{ add (add 2 (len $.CustomFieldNames)) (len $.CustomScores) }})">Tests</th>
+                        <th onclick="sortTable({{ add (add 3 (len $.CustomFieldNames)) (len $.CustomScores) }})">Min</th>
+                        <th onclick="sortTable({{ add (add 4 (len $.CustomFieldNames)) (len $.CustomScores) }})">Max</th>
+                        <th onclick="sortTable({{ add (add 5 (len $.CustomFieldNames)) (len $.CustomScores) }})">Time (ms)</th>
                     </tr>
                 </thead>
                 <tbody id="table-body">
@@ -872,7 +872,7 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
                         <td><strong>{{ $stat.ActualModelName }}</strong></td>
                         <td class="score {{ if ge $stat.AvgScore 0.7 }}score-good{{ else if ge $stat.AvgScore 0.5 }}score-fair{{ else }}score-poor{{ end }}">{{ printf "%.2f" $stat.AvgScore }}</td>
                         {{ range $fieldName := $.CustomFieldNames }}
-                        <td>{{ index $stat.CustomFields $fieldName }}</td>
+                        <td>{{ formatValue (index $stat.CustomFields $fieldName) }}</td>
                         {{ end }}
                         {{ range $scoreType := $.CustomScores }}
                         {{ $customScore := index $stat.CustomScores $scoreType }}
@@ -1099,6 +1099,18 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
 				return fmt.Sprintf("%v", v)
 			}
 		},
+		"formatValue": func(val string) string {
+			// Try to parse as float
+			if parsed, err := strconv.ParseFloat(val, 64); err == nil {
+				// Round to 1 decimal place for temperatures
+				// Round to 0 decimals for integers
+				if parsed == float64(int64(parsed)) {
+					return fmt.Sprintf("%.0f", parsed)
+				}
+				return fmt.Sprintf("%.1f", parsed)
+			}
+			return val
+		},
 	}
 	t := template.Must(template.New("dashboard").Funcs(funcMap).Parse(tmpl))
 	if err := t.Execute(w, evalData); err != nil {
@@ -1147,124 +1159,278 @@ func testsHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 	tmpl := `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Test Results - GoEvals</title>
     <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --bg-tertiary: #f1f5f9;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-tertiary: #94a3b8;
+            --border-color: #e2e8f0;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        [data-theme="dark"] {
+            --bg-primary: #1e293b;
+            --bg-secondary: #0f172a;
+            --bg-tertiary: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #cbd5e1;
+            --text-tertiary: #64748b;
+            --border-color: #334155;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #f5f5f5;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
             padding: 2rem;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
         .container {
             max-width: 95%;
             margin: 0 auto;
         }
         header {
-            background: white;
+            background: var(--bg-primary);
             padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            box-shadow: var(--shadow-md);
             margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
         }
         h1 {
-            color: #333;
+            color: var(--text-primary);
             margin-bottom: 0.5rem;
         }
         .subtitle {
-            color: #666;
-            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
         }
         .back-link {
             display: inline-block;
             margin-bottom: 1rem;
-            color: #3b82f6;
+            color: var(--accent);
             text-decoration: none;
         }
         .back-link:hover {
             text-decoration: underline;
         }
-        .test-card {
-            background: white;
+        .header-left h1 {
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+            font-size: 1.875rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+        }
+        .header-right {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+        .theme-toggle, .help-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+        .theme-toggle:hover, .help-btn:hover {
+            background: var(--bg-primary);
+            border-color: var(--accent);
+            color: var(--accent);
+            transform: translateY(-1px);
+        }
+        .help-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .help-modal.show {
+            display: flex;
+        }
+        .help-content {
+            background: var(--bg-primary);
+            padding: 2rem;
+            border-radius: 12px;
+            max-width: 500px;
+            box-shadow: var(--shadow-md);
+        }
+        .help-content h3 {
+            color: var(--text-primary);
             margin-bottom: 1rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .help-content table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .help-content td {
+            padding: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+        .help-content td:first-child {
+            font-family: monospace;
+            font-weight: 600;
+            color: var(--accent);
+        }
+        .tests-table {
+            background: var(--bg-primary);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
             overflow: hidden;
         }
-        .test-header {
-            padding: 1rem 1.5rem;
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th {
+            background: var(--bg-tertiary);
+            padding: 0.75rem 1rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-tertiary);
+            border-bottom: 1px solid var(--border-color);
+        }
+        tbody tr {
+            border-bottom: 1px solid var(--border-color);
             cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: background-color 0.2s;
-            border-left: 4px solid transparent;
+            transition: background-color 0.15s ease;
         }
-        .test-header:hover {
-            background-color: #f9fafb;
+        tbody tr:hover {
+            background: var(--bg-secondary);
         }
-        .test-header.expanded {
-            border-left-color: #3b82f6;
+        tbody tr:last-child {
+            border-bottom: none;
         }
-        .test-header-left {
-            display: flex;
-            gap: 2rem;
-            align-items: center;
-            flex: 1;
+        td {
+            padding: 1rem;
+            color: var(--text-primary);
+            font-size: 0.875rem;
         }
         .test-id {
             font-family: monospace;
-            font-weight: 600;
-            color: #333;
-            min-width: 150px;
+            font-size: 0.8125rem;
+            color: var(--text-tertiary);
         }
         .model-name {
-            font-weight: 600;
-            color: #3b82f6;
-            min-width: 120px;
+            font-weight: 500;
+            color: var(--text-primary);
         }
-        .question-preview {
-            flex: 1;
-            color: #666;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+        .score-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            font-family: monospace;
         }
-        .test-meta {
+        .score-good {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+        .score-fair {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+        }
+        .score-poor {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+        }
+        .time-badge {
+            font-family: monospace;
+            font-size: 0.8125rem;
+            color: var(--text-tertiary);
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        .modal.show {
             display: flex;
-            gap: 1.5rem;
+        }
+        .modal-content {
+            background: var(--bg-primary);
+            border-radius: 12px;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            border: 1px solid var(--border-color);
+        }
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
             align-items: center;
         }
-        .score {
+        .modal-title {
+            font-size: 1.125rem;
             font-weight: 600;
-            font-size: 1.1rem;
-            min-width: 50px;
+            color: var(--text-primary);
         }
-        .score-good { color: #10b981; }
-        .score-fair { color: #f59e0b; }
-        .score-poor { color: #ef4444; }
-        .response-time {
-            color: #666;
-            font-size: 0.875rem;
+        .modal-close {
+            background: transparent;
+            border: none;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            font-size: 1.5rem;
+            padding: 0;
+            width: 2rem;
+            height: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            transition: all 0.15s ease;
         }
-        .expand-icon {
-            color: #999;
-            transition: transform 0.2s;
+        .modal-close:hover {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
         }
-        .test-header.expanded .expand-icon {
-            transform: rotate(90deg);
-        }
-        .test-details {
-            display: none;
+        .modal-body {
             padding: 1.5rem;
-            border-top: 1px solid #e5e7eb;
-            background: #f9fafb;
-        }
-        .test-details.expanded {
-            display: block;
         }
         .detail-section {
             margin-bottom: 1.5rem;
@@ -1274,20 +1440,20 @@ func testsHandler(w http.ResponseWriter, r *http.Request) {
         }
         .detail-label {
             font-weight: 600;
-            color: #374151;
+            color: var(--text-secondary);
             margin-bottom: 0.5rem;
-            font-size: 0.875rem;
+            font-size: 0.75rem;
             text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
         .detail-content {
             padding: 1rem;
-            background: white;
-            border-radius: 4px;
-            border: 1px solid #e5e7eb;
-            font-size: 0.9375rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            font-size: 0.875rem;
             line-height: 1.6;
             white-space: pre-wrap;
-            color: #1f2937;
+            color: var(--text-primary);
         }
         .scores-grid {
             display: grid;
@@ -1296,13 +1462,13 @@ func testsHandler(w http.ResponseWriter, r *http.Request) {
         }
         .score-item {
             padding: 0.75rem;
-            background: white;
+            background: var(--bg-primary);
             border-radius: 4px;
-            border: 1px solid #e5e7eb;
+            border: 1px solid var(--border-color);
         }
         .score-item-label {
             font-size: 0.75rem;
-            color: #6b7280;
+            color: var(--text-tertiary);
             margin-bottom: 0.25rem;
         }
         .score-item-value {
@@ -1316,17 +1482,17 @@ func testsHandler(w http.ResponseWriter, r *http.Request) {
         }
         .metadata-item {
             padding: 0.5rem 0.75rem;
-            background: white;
+            background: var(--bg-primary);
             border-radius: 4px;
-            border: 1px solid #e5e7eb;
+            border: 1px solid var(--border-color);
             font-size: 0.8125rem;
         }
         .metadata-key {
-            color: #6b7280;
+            color: var(--text-tertiary);
             font-weight: 500;
         }
         .metadata-value {
-            color: #1f2937;
+            color: var(--text-primary);
             margin-left: 0.5rem;
         }
     </style>
@@ -1336,113 +1502,231 @@ func testsHandler(w http.ResponseWriter, r *http.Request) {
         <a href="/" class="back-link">← Back to Dashboard</a>
 
         <header>
-            <h1>🐹 Test Results {{ if . }}({{ len . }} tests){{ end }}</h1>
-            <p class="subtitle">Click on any test to see full details</p>
+            <div class="header-left">
+                <h1>Test Results {{ if . }}({{ len . }} tests){{ end }}</h1>
+                <p class="subtitle">Click on any test to see full details</p>
+            </div>
+            <div class="header-right">
+                <button id="theme-toggle" class="theme-toggle">
+                    <span id="theme-icon">Dark</span>
+                </button>
+                <button id="help-btn" class="help-btn">?</button>
+            </div>
         </header>
 
-        {{ range $index, $result := . }}
-        <div class="test-card">
-            <div class="test-header" onclick="toggleDetails({{ $index }})">
-                <div class="test-header-left">
-                    <div class="test-id">{{ $result.TestID }}</div>
-                    <div class="model-name">{{ $result.Model }}</div>
-                    <div class="question-preview">{{ $result.Question }}</div>
-                </div>
-                <div class="test-meta">
-                    <span class="score {{ if ge $result.Scores.Combined 0.7 }}score-good{{ else if ge $result.Scores.Combined 0.5 }}score-fair{{ else }}score-poor{{ end }}">
-                        {{ printf "%.2f" $result.Scores.Combined }}
-                    </span>
-                    <span class="response-time">{{ $result.ResponseTimeMS }}ms</span>
-                    <span class="expand-icon">▶</span>
-                </div>
+        <div id="help-modal" class="help-modal">
+            <div class="help-content">
+                <h3>Keyboard Shortcuts</h3>
+                <table>
+                    <tr><td>D</td><td>Toggle dark mode</td></tr>
+                    <tr><td>R</td><td>Refresh page</td></tr>
+                    <tr><td>?</td><td>Show this help</td></tr>
+                    <tr><td>Esc</td><td>Close help</td></tr>
+                </table>
             </div>
-            <div class="test-details" id="details-{{ $index }}">
-                <div class="detail-section">
-                    <div class="detail-label">📝 Question</div>
-                    <div class="detail-content">{{ $result.Question }}</div>
-                </div>
+        </div>
 
-                <div class="detail-section">
-                    <div class="detail-label">🤖 Model Response</div>
-                    <div class="detail-content">{{ if $result.Response }}{{ $result.Response }}{{ else }}<em style="color: #9ca3af;">No response recorded</em>{{ end }}</div>
-                </div>
+        <div class="tests-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Test ID</th>
+                        <th>Model</th>
+                        <th>Question</th>
+                        <th>Score</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{ range $index, $result := . }}
+                    <tr onclick="showTestModal({{ $index }})">
+                        <td class="test-id">{{ $result.TestID }}</td>
+                        <td class="model-name">{{ $result.Model }}</td>
+                        <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ $result.Question }}</td>
+                        <td>
+                            <span class="score-badge {{ if ge $result.Scores.Combined 0.7 }}score-good{{ else if ge $result.Scores.Combined 0.5 }}score-fair{{ else }}score-poor{{ end }}">
+                                {{ printf "%.2f" $result.Scores.Combined }}
+                            </span>
+                        </td>
+                        <td class="time-badge">{{ $result.ResponseTimeMS }}ms</td>
+                    </tr>
+                    {{ end }}
+                </tbody>
+            </table>
+        </div>
 
-                {{ if $result.Expected }}
-                <div class="detail-section">
-                    <div class="detail-label">✅ Expected Response</div>
-                    <div class="detail-content">{{ $result.Expected }}</div>
+        {{ range $index, $result := . }}
+        <div id="modal-{{ $index }}" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="modal-title">{{ $result.TestID }}</div>
+                    <button class="modal-close" onclick="closeTestModal({{ $index }})">&times;</button>
                 </div>
-                {{ end }}
+                <div class="modal-body">
+                    <div class="detail-section">
+                        <div class="detail-label">Question</div>
+                        <div class="detail-content">{{ $result.Question }}</div>
+                    </div>
 
-                {{ if $result.JudgeModel }}
-                <div class="detail-section">
-                    <div class="detail-label">⚖️ Judge Evaluation ({{ $result.JudgeModel }})</div>
-                    {{ if $result.JudgeFactualReasoning }}
-                    <div style="margin-bottom: 0.75rem;">
-                        <div style="font-weight: 600; color: #6b7280; font-size: 0.75rem; margin-bottom: 0.25rem; text-transform: uppercase;">Factual Correctness</div>
-                        <div class="detail-content">{{ $result.JudgeFactualReasoning }}</div>
+                    <div class="detail-section">
+                        <div class="detail-label">Model Response</div>
+                        <div class="detail-content">{{ if $result.Response }}{{ $result.Response }}{{ else }}<em style="color: #9ca3af;">No response recorded</em>{{ end }}</div>
+                    </div>
+
+                    {{ if $result.Expected }}
+                    <div class="detail-section">
+                        <div class="detail-label">Expected Response</div>
+                        <div class="detail-content">{{ $result.Expected }}</div>
                     </div>
                     {{ end }}
-                    {{ if $result.JudgeFaithfulReasoning }}
-                    <div style="margin-bottom: 0.75rem;">
-                        <div style="font-weight: 600; color: #6b7280; font-size: 0.75rem; margin-bottom: 0.25rem; text-transform: uppercase;">Faithfulness</div>
-                        <div class="detail-content">{{ $result.JudgeFaithfulReasoning }}</div>
-                    </div>
-                    {{ end }}
-                    {{ if $result.JudgeContextReasoning }}
-                    <div style="margin-bottom: 0;">
-                        <div style="font-weight: 600; color: #6b7280; font-size: 0.75rem; margin-bottom: 0.25rem; text-transform: uppercase;">Context Relevance</div>
-                        <div class="detail-content">{{ $result.JudgeContextReasoning }}</div>
-                    </div>
-                    {{ end }}
-                </div>
-                {{ end }}
 
-                <div class="detail-section">
-                    <div class="detail-label">📊 Score Breakdown</div>
-                    <div class="scores-grid">
-                        <div class="score-item">
-                            <div class="score-item-label">Combined</div>
-                            <div class="score-item-value score {{ if ge $result.Scores.Combined 0.7 }}score-good{{ else if ge $result.Scores.Combined 0.5 }}score-fair{{ else }}score-poor{{ end }}">
-                                {{ printf "%.3f" $result.Scores.Combined }}
-                            </div>
+                    {{ if $result.JudgeModel }}
+                    <div class="detail-section">
+                        <div class="detail-label">Judge Evaluation ({{ $result.JudgeModel }})</div>
+                        {{ if $result.JudgeFactualReasoning }}
+                        <div style="margin-bottom: 0.75rem;">
+                            <div style="font-weight: 600; color: var(--text-tertiary); font-size: 0.75rem; margin-bottom: 0.25rem; text-transform: uppercase;">Factual Correctness</div>
+                            <div class="detail-content">{{ $result.JudgeFactualReasoning }}</div>
                         </div>
-                        {{ range $key, $value := $result.Scores.Custom }}
-                        <div class="score-item">
-                            <div class="score-item-label">{{ $key }}</div>
-                            <div class="score-item-value score {{ if ge $value 0.7 }}score-good{{ else if ge $value 0.4 }}score-fair{{ else }}score-poor{{ end }}">
-                                {{ printf "%.3f" $value }}
-                            </div>
+                        {{ end }}
+                        {{ if $result.JudgeFaithfulReasoning }}
+                        <div style="margin-bottom: 0.75rem;">
+                            <div style="font-weight: 600; color: var(--text-tertiary); font-size: 0.75rem; margin-bottom: 0.25rem; text-transform: uppercase;">Faithfulness</div>
+                            <div class="detail-content">{{ $result.JudgeFaithfulReasoning }}</div>
+                        </div>
+                        {{ end }}
+                        {{ if $result.JudgeContextReasoning }}
+                        <div style="margin-bottom: 0;">
+                            <div style="font-weight: 600; color: var(--text-tertiary); font-size: 0.75rem; margin-bottom: 0.25rem; text-transform: uppercase;">Context Relevance</div>
+                            <div class="detail-content">{{ $result.JudgeContextReasoning }}</div>
                         </div>
                         {{ end }}
                     </div>
-                </div>
+                    {{ end }}
 
-                {{ if $result.Metadata }}
-                <div class="detail-section">
-                    <div class="detail-label">🔧 Metadata</div>
-                    <div class="metadata-grid">
-                        {{ range $key, $value := $result.Metadata }}
-                        <div class="metadata-item">
-                            <span class="metadata-key">{{ $key }}:</span>
-                            <span class="metadata-value">{{ $value }}</span>
+                    <div class="detail-section">
+                        <div class="detail-label">Score Breakdown</div>
+                        <div class="scores-grid">
+                            <div class="score-item">
+                                <div class="score-item-label">Combined</div>
+                                <div class="score-item-value score {{ if ge $result.Scores.Combined 0.7 }}score-good{{ else if ge $result.Scores.Combined 0.5 }}score-fair{{ else }}score-poor{{ end }}">
+                                    {{ printf "%.3f" $result.Scores.Combined }}
+                                </div>
+                            </div>
+                            {{ range $key, $value := $result.Scores.Custom }}
+                            <div class="score-item">
+                                <div class="score-item-label">{{ $key }}</div>
+                                <div class="score-item-value score {{ if ge $value 0.7 }}score-good{{ else if ge $value 0.4 }}score-fair{{ else }}score-poor{{ end }}">
+                                    {{ printf "%.3f" $value }}
+                                </div>
+                            </div>
+                            {{ end }}
                         </div>
-                        {{ end }}
                     </div>
+
+                    {{ if $result.CustomFields }}
+                    <div class="detail-section">
+                        <div class="detail-label">Configuration</div>
+                        <div class="metadata-grid">
+                            {{ range $key, $value := $result.CustomFields }}
+                            <div class="metadata-item">
+                                <span class="metadata-key">{{ $key }}:</span>
+                                <span class="metadata-value">{{ $value }}</span>
+                            </div>
+                            {{ end }}
+                        </div>
+                    </div>
+                    {{ end }}
+
+                    {{ if $result.Metadata }}
+                    <div class="detail-section">
+                        <div class="detail-label">Metadata</div>
+                        <div class="metadata-grid">
+                            {{ range $key, $value := $result.Metadata }}
+                            <div class="metadata-item">
+                                <span class="metadata-key">{{ $key }}:</span>
+                                <span class="metadata-value">{{ $value }}</span>
+                            </div>
+                            {{ end }}
+                        </div>
+                    </div>
+                    {{ end }}
                 </div>
-                {{ end }}
             </div>
         </div>
         {{ end }}
     </div>
     <script>
-        function toggleDetails(index) {
-            const header = document.querySelectorAll('.test-header')[index];
-            const details = document.getElementById('details-' + index);
+        // Dark mode toggle
+        const themeToggle = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+        const html = document.documentElement;
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        html.setAttribute('data-theme', savedTheme);
+        themeIcon.textContent = savedTheme === 'light' ? 'Dark' : 'Light';
 
-            header.classList.toggle('expanded');
-            details.classList.toggle('expanded');
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            themeIcon.textContent = newTheme === 'light' ? 'Dark' : 'Light';
+        });
+
+        // Help modal
+        const helpBtn = document.getElementById('help-btn');
+        const helpModal = document.getElementById('help-modal');
+
+        helpBtn.addEventListener('click', () => {
+            helpModal.classList.add('show');
+        });
+
+        helpModal.addEventListener('click', (e) => {
+            if (e.target === helpModal) {
+                helpModal.classList.remove('show');
+            }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'd' || e.key === 'D') {
+                e.preventDefault();
+                themeToggle.click();
+            }
+            if (e.key === '?') {
+                e.preventDefault();
+                helpModal.classList.add('show');
+            }
+            if (e.key === 'r' || e.key === 'R') {
+                e.preventDefault();
+                location.reload();
+            }
+            if (e.key === 'Escape') {
+                helpModal.classList.remove('show');
+                // Close all test modals on Escape
+                document.querySelectorAll('.modal').forEach(modal => {
+                    modal.classList.remove('show');
+                });
+            }
+        });
+
+        // Modal functions
+        function showTestModal(index) {
+            const modal = document.getElementById('modal-' + index);
+            modal.classList.add('show');
         }
+
+        function closeTestModal(index) {
+            const modal = document.getElementById('modal-' + index);
+            modal.classList.remove('show');
+        }
+
+        // Close modal when clicking outside
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                e.target.classList.remove('show');
+            }
+        });
     </script>
 </body>
 </html>`

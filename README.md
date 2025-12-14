@@ -3,15 +3,16 @@
 
   # GoEvals
 
-  **Fast, local-first LLM evaluation dashboard with smart refresh and sortable metrics**
+  **Fast, local-first LLM evaluation dashboard with universal JSONL support**
 
   [![CI](https://github.com/rchojn/goevals/actions/workflows/ci.yml/badge.svg)](https://github.com/rchojn/goevals/actions/workflows/ci.yml)
   [![Go Report Card](https://goreportcard.com/badge/github.com/rchojn/goevals)](https://goreportcard.com/report/github.com/rchojn/goevals)
   [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://go.dev)
   [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-  ![GoEvals Dashboard](assets/screenshot.png)
-  ![GoEvals Details](assets/screenshot2.png)
+  ![GoEvals Dashboard](assets/dashboard-main.png)
+
+  *Professional dashboard with dynamic columns that adapt to your custom metrics*
 </div>
 
 ---
@@ -32,20 +33,41 @@ Built for **Go developers creating AI applications** who want a lightweight, hac
 
 ---
 
+## Screenshots
+
+### Main Dashboard
+![Main Dashboard](assets/dashboard-main.png)
+
+*Model comparison table with dynamic columns for custom RAG parameters (chunk_size, temperature, top_k, etc.)*
+
+### Test Details Table
+![Test Details](assets/test-details-table.png)
+
+*Clean table view with clickable rows for detailed inspection*
+
+### Test Modal
+![Test Modal](assets/test-modal.png)
+
+*Full test details including question, model response, expected answer, score breakdown, and configuration*
+
+---
+
 ## Features
 
 ### Core Features
-- **Smart polling** - Efficient updates without full page reload
+- **Universal JSONL** - Automatically detects ALL custom fields and scores from your data
+- **Dynamic columns** - Table adapts to show any RAG parameters (chunk_size, temperature, embedding_model, etc.)
+- **Smart polling** - Efficient updates without full page reload (5s intervals)
 - **Sortable columns** - Click any header to sort by that metric
 - **Color-coded scores** - Instant visual feedback (green >0.7, yellow 0.4-0.7, red <0.4)
-- **Expandable details** - Click any test card to see full question, response, and metadata
+- **Professional UI** - Modern modal-based design like Linear/Vercel/Stripe
+- **Dark mode** - Built-in dark theme with localStorage persistence
 - **Multiple files** - Load and compare results from multiple JSONL files
-- **Custom metrics** - Automatically detects and displays any custom score fields
 
 ### Dashboard Views
 - **Overview** - Total tests, models tested, average scores
-- **Model comparison** - Side-by-side metrics with min/max/avg
-- **Test results** - Detailed view with full questions, responses, and scoring breakdowns
+- **Model comparison** - Side-by-side metrics with min/max/avg, shows ALL custom parameters
+- **Test details** - Table view with modal dialogs for full question, response, and scoring breakdowns
 
 ---
 
@@ -153,13 +175,21 @@ With all optional fields:
 - `scores.*` - **Any custom score metrics** (auto-detected!)
 - `metadata` - Any additional context
 
-### Custom Scores
+### Custom Scores & Fields
 
-Just add them to the `scores` object - they'll automatically appear as sortable columns:
+**Custom scores** - Add any metrics to `scores` object, they'll appear as sortable columns:
 
 ```jsonl
 {"timestamp":"2025-10-26T14:30:00Z","model":"gpt-4","scores":{"combined":0.85,"accuracy":0.90,"creativity":0.88,"safety":0.95}}
 ```
+
+**Custom fields** - Add ANY top-level fields (RAG params, etc.), they'll appear as columns too:
+
+```jsonl
+{"timestamp":"2025-10-26T14:30:00Z","model":"llama3.2:1b","scores":{"combined":0.85},"chunk_size":500,"temperature":0.7,"embedding_model":"nomic-embed-text","top_k":5}
+```
+
+GoEvals **automatically detects and displays** all custom fields - no configuration needed!
 
 ---
 

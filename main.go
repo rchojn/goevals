@@ -526,36 +526,94 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tmpl := `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GoEvals - LLM Evaluation Dashboard</title>
     <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --bg-tertiary: #f1f5f9;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-tertiary: #94a3b8;
+            --border-color: #e2e8f0;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        [data-theme="dark"] {
+            --bg-primary: #1e293b;
+            --bg-secondary: #0f172a;
+            --bg-tertiary: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #cbd5e1;
+            --text-tertiary: #64748b;
+            --border-color: #334155;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #f5f5f5;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
             padding: 2rem;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
         .container {
             max-width: 98%;
             margin: 0 auto;
         }
         header {
-            background: white;
+            background: var(--bg-primary);
             padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            box-shadow: var(--shadow-md);
             margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
         }
-        h1 {
-            color: #333;
+        .header-left h1 {
+            color: var(--text-primary);
             margin-bottom: 0.5rem;
+            font-size: 1.875rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
         }
         .subtitle {
-            color: #666;
-            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+        .header-right {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+        .theme-toggle, .help-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+        .theme-toggle:hover, .help-btn:hover {
+            background: var(--bg-primary);
+            border-color: var(--accent);
+            color: var(--accent);
+            transform: translateY(-1px);
         }
         .stats-grid {
             display: grid;
@@ -564,30 +622,66 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
             margin-bottom: 2rem;
         }
         .stat-card {
-            background: white;
+            background: var(--bg-primary);
             padding: 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+        .stat-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
         }
         .stat-label {
-            color: #666;
-            font-size: 0.875rem;
+            color: var(--text-tertiary);
+            font-size: 0.75rem;
             margin-bottom: 0.5rem;
-        }
-        .stat-value {
-            color: #333;
-            font-size: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
             font-weight: 600;
         }
+        .stat-value {
+            color: var(--text-primary);
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+        }
         .models-section {
-            background: white;
+            background: var(--bg-primary);
             padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--border-color);
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
         }
         h2 {
-            color: #333;
-            margin-bottom: 1rem;
+            color: var(--text-primary);
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+        }
+        .auto-refresh-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+        .status-indicator {
+            color: var(--success);
+            animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
         table {
             width: 100%;
@@ -596,12 +690,13 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
         th, td {
             padding: 1rem;
             text-align: left;
-            border-bottom: 1px solid #e0e0e0;
+            border-bottom: 1px solid var(--border-color);
+            transition: background-color 0.2s ease;
         }
         th {
-            background: #f9f9f9;
+            background: var(--bg-tertiary);
             font-weight: 600;
-            color: #666;
+            color: var(--text-secondary);
             font-size: 0.875rem;
             text-transform: uppercase;
             cursor: pointer;
@@ -610,30 +705,33 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
             padding-right: 20px;
         }
         th:hover {
-            background: #f0f0f0;
+            background: var(--bg-secondary);
         }
         th::after {
-            content: '⇅';
+            content: '↕';
             position: absolute;
             right: 8px;
             opacity: 0.3;
+            color: var(--text-tertiary);
         }
         th.sorted-asc::after {
-            content: '▲';
+            content: '↑';
             opacity: 1;
+            color: var(--accent);
         }
         th.sorted-desc::after {
-            content: '▼';
+            content: '↓';
             opacity: 1;
+            color: var(--accent);
         }
         td {
-            color: #333;
+            color: var(--text-primary);
         }
         /* Sticky/Frozen columns for Model + Embedding */
         th:nth-child(1), td:nth-child(1) {
             position: sticky;
             left: 0;
-            background: white;
+            background: var(--bg-primary);
             z-index: 10;
             box-shadow: 2px 0 4px rgba(0,0,0,0.05);
             min-width: 200px;
@@ -642,18 +740,18 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
         th:nth-child(2), td:nth-child(2) {
             position: sticky;
             left: 200px;
-            background: white;
+            background: var(--bg-primary);
             z-index: 10;
             box-shadow: 2px 0 4px rgba(0,0,0,0.05);
             min-width: 150px;
             max-width: 150px;
         }
         th:nth-child(1) {
-            background: #f9f9f9;
+            background: var(--bg-tertiary);
             z-index: 11;
         }
         th:nth-child(2) {
-            background: #f9f9f9;
+            background: var(--bg-tertiary);
             z-index: 11;
         }
         /* Column widths */
@@ -666,10 +764,10 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
         /* Score columns - smaller width */
         .score-cell { min-width: 90px; max-width: 90px; text-align: center; font-weight: 600; }
         tbody tr {
-            transition: background-color 0.2s;
+            transition: background-color 0.2s ease;
         }
         tbody tr:hover {
-            background-color: #f9fafb;
+            background-color: var(--bg-secondary);
         }
         .score {
             font-weight: 600;
@@ -679,17 +777,72 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
         .score-poor { color: #ef4444; }
         footer {
             text-align: center;
-            color: #999;
+            color: var(--text-tertiary);
             margin-top: 2rem;
             font-size: 0.875rem;
+        }
+        footer a {
+            color: var(--accent);
+            transition: color 0.2s ease;
+        }
+        footer a:hover {
+            color: var(--accent-hover);
+        }
+        .help-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .help-modal.show {
+            display: flex;
+        }
+        .help-content {
+            background: var(--bg-primary);
+            padding: 2rem;
+            border-radius: 12px;
+            max-width: 500px;
+            box-shadow: var(--shadow-md);
+        }
+        .help-content h3 {
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+        .help-content table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .help-content td {
+            padding: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+        .help-content td:first-child {
+            font-family: monospace;
+            font-weight: 600;
+            color: var(--accent);
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🐹 GoEvals Dashboard</h1>
-            <p class="subtitle">Simple, self-hosted LLM evaluation visualization</p>
+            <div class="header-left">
+                <h1>GoEvals Dashboard</h1>
+                <p class="subtitle">Simple, self-hosted LLM evaluation visualization</p>
+            </div>
+            <div class="header-right">
+                <button id="theme-toggle" class="theme-toggle">
+                    <span id="theme-icon">Dark</span>
+                </button>
+                <button id="help-btn" class="help-btn">?</button>
+            </div>
         </header>
 
         <div class="stats-grid">
@@ -758,18 +911,80 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
         </div>
 
         <footer>
-            Built with Go stdlib + HTML + common sense 🐹<br>
-            <a href="https://github.com/rchojn/goevals" style="color: #3b82f6;">github.com/rchojn/goevals</a><br>
+            Built with Go stdlib + HTML + common sense<br>
+            <a href="https://github.com/rchojn/goevals">github.com/rchojn/goevals</a><br>
             <div style="margin-top: 0.75rem; display: flex; align-items: center; justify-content: center; gap: 1rem;">
-                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.875rem; color: #666;">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.875rem;">
                     <input type="checkbox" id="autorefresh-toggle" checked style="cursor: pointer;">
                     <span>Auto-refresh (5s)</span>
                 </label>
-                <span id="refresh-indicator" style="color: #999; font-size: 0.8rem;">Enabled</span>
+                <span id="refresh-indicator" style="font-size: 0.8rem;">Enabled</span>
             </div>
         </footer>
     </div>
+
+    <div id="help-modal" class="help-modal">
+        <div class="help-content">
+            <h3>Keyboard Shortcuts</h3>
+            <table>
+                <tr><td>D</td><td>Toggle dark mode</td></tr>
+                <tr><td>R</td><td>Refresh dashboard</td></tr>
+                <tr><td>?</td><td>Show this help</td></tr>
+                <tr><td>Esc</td><td>Close help</td></tr>
+            </table>
+        </div>
+    </div>
+
     <script>
+        // Dark mode toggle
+        const themeToggle = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+        const html = document.documentElement;
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        html.setAttribute('data-theme', savedTheme);
+        themeIcon.textContent = savedTheme === 'light' ? 'Dark' : 'Light';
+
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            themeIcon.textContent = newTheme === 'light' ? 'Dark' : 'Light';
+        });
+
+        // Help modal
+        const helpBtn = document.getElementById('help-btn');
+        const helpModal = document.getElementById('help-modal');
+
+        helpBtn.addEventListener('click', () => {
+            helpModal.classList.add('show');
+        });
+
+        helpModal.addEventListener('click', (e) => {
+            if (e.target === helpModal) {
+                helpModal.classList.remove('show');
+            }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'd' || e.key === 'D') {
+                e.preventDefault();
+                themeToggle.click();
+            }
+            if (e.key === '?') {
+                e.preventDefault();
+                helpModal.classList.add('show');
+            }
+            if (e.key === 'r' || e.key === 'R') {
+                e.preventDefault();
+                location.reload();
+            }
+            if (e.key === 'Escape') {
+                helpModal.classList.remove('show');
+            }
+        });
+
         // Smart polling - fetch only new results every 5 seconds
         let lastTimestamp = new Date().toISOString();
         let pollInterval = 5000; // 5 seconds
@@ -784,10 +999,8 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
         function updateIndicator() {
             if (!autoRefreshEnabled) {
                 indicator.textContent = 'Disabled';
-                indicator.style.color = '#999';
             } else {
                 indicator.textContent = 'Enabled';
-                indicator.style.color = '#999';
             }
         }
         updateIndicator();

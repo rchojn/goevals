@@ -1,5 +1,6 @@
 # Binaries
 goevals
+bin/
 *.exe
 *.exe~
 *.dll

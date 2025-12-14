@@ -51,38 +51,50 @@ Built for **Go developers creating AI applications** who want a lightweight, hac
 
 ## Quick Start
 
+### Using Make (Recommended)
+
 ```bash
 # Clone the repository
 git clone https://github.com/rchojn/goevals
 cd goevals
 
-# Run with sample data
-go run main.go evals_sample.jsonl
+# See all available commands
+make help
 
-# Visit http://localhost:3000
+# Build binary
+make build
+
+# Run with empty dashboard (no data needed)
+make run-empty
+
+# Run with your data
+make run  # requires evals.jsonl in current directory
+
+# Run tests
+make test
+
+# Format code and check quality
+make check
 ```
 
-### Build as Binary
+**Windows users:** Use `.\task.ps1 <command>` instead of `make` (PowerShell script with same targets).
+
+### Manual Commands
 
 ```bash
-# Build
-go build -o goevals main.go
+# Build binary
+go build -o bin/goevals main.go
 
-# Run
-./goevals evals.jsonl
+# Run with sample data
+./bin/goevals evals.jsonl
 
 # Run on custom port
-PORT=8080 ./goevals evals.jsonl
-```
+PORT=8080 ./bin/goevals evals.jsonl
 
-### Multiple Files
-
-```bash
 # Compare multiple test runs
-./goevals run1.jsonl run2.jsonl run3.jsonl
+./bin/goevals run1.jsonl run2.jsonl run3.jsonl
 
-# Compare yesterday vs today
-./goevals yesterday.jsonl today.jsonl
+# Visit http://localhost:3000
 ```
 
 ---

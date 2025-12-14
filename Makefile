@@ -53,9 +53,15 @@ install:  ## Install binary to GOPATH/bin
 	go install
 	@echo "Installed: $(shell go env GOPATH)/bin/goevals"
 
-dev:  ## Run with auto-reload (requires 'air' - install with: go install github.com/cosmtrek/air@latest)
+dev:  ## Run with auto-reload (requires 'air' and evals.jsonl file)
 	@which air > /dev/null || (echo "Error: 'air' not found. Install with: go install github.com/cosmtrek/air@latest" && exit 1)
+	@if [ ! -f "evals.jsonl" ]; then \
+		echo "Error: evals.jsonl not found. Run 'make run-empty' instead or create sample file."; \
+		exit 1; \
+	fi
 	@echo "Starting development server with hot reload..."
+	@echo "Server will run on http://localhost:3000"
+	@echo "Edit .air.toml to change args or config"
 	air
 
 lint:  ## Run golangci-lint (install from https://golangci-lint.run/usage/install/)

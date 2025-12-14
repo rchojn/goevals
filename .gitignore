@@ -31,8 +31,12 @@ go.work
 Thumbs.db
 
 # Runtime data
-evals.jsonl
+# evals.jsonl is now tracked for development (sample data)
 *.log
+
+# Air hot reload
+tmp/
+build-errors.log
 
 # Internal documentation (private notes)
 docs/

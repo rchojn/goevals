@@ -34,7 +34,8 @@ type EvalResult struct {
 	CustomFields map[string]any `json:"-"` // Captures any extra top-level fields dynamically
 }
 
-// Known field names for EvalResult
+// Known field names for EvalResult (core fields that map to struct)
+// All other fields become CustomFields and appear as dynamic table columns
 var knownFields = map[string]bool{
 	"timestamp":                true,
 	"model":                    true,
@@ -49,14 +50,9 @@ var knownFields = map[string]bool{
 	"judge_factual_reasoning":  true,
 	"judge_faithful_reasoning": true,
 	"judge_context_reasoning":  true,
-	"test_run_date":            true,
-	"embedding_model":          true,
-	"chunk_size":               true,
-	"chunk_overlap":            true,
-	"top_k":                    true,
-	"retrieval_method":         true,
-	"temperature":              true,
-	"question_id":              true,
+	// Removed from knownFields - now detected as CustomFields:
+	// "embedding_model", "chunk_size", "chunk_overlap", "top_k",
+	// "retrieval_method", "temperature", "test_run_date", "question_id"
 }
 
 // UnmarshalJSON custom unmarshaler to capture custom top-level fields
@@ -727,7 +723,7 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
         td {
             color: var(--text-primary);
         }
-        /* Sticky/Frozen columns for Model + Embedding */
+        /* Sticky/Frozen column for Model name */
         th:nth-child(1), td:nth-child(1) {
             position: sticky;
             left: 0;
@@ -737,32 +733,21 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
             min-width: 200px;
             max-width: 200px;
         }
-        th:nth-child(2), td:nth-child(2) {
-            position: sticky;
-            left: 200px;
-            background: var(--bg-primary);
-            z-index: 10;
-            box-shadow: 2px 0 4px rgba(0,0,0,0.05);
-            min-width: 150px;
-            max-width: 150px;
-        }
         th:nth-child(1) {
             background: var(--bg-tertiary);
             z-index: 11;
         }
-        th:nth-child(2) {
-            background: var(--bg-tertiary);
-            z-index: 11;
+        /* Default column widths (dynamic columns) */
+        th, td {
+            min-width: 100px;
         }
-        /* Column widths */
-        th:nth-child(3), td:nth-child(3) { min-width: 100px; max-width: 100px; } /* Combined Score */
-        th:nth-child(4), td:nth-child(4) { min-width: 80px; max-width: 80px; }   /* Top_K */
-        th:nth-child(5), td:nth-child(5) { min-width: 100px; max-width: 100px; } /* Chunk_Size */
-        th:nth-child(6), td:nth-child(6) { min-width: 100px; max-width: 100px; } /* Chunk_Overlap */
-        th:nth-child(7), td:nth-child(7) { min-width: 120px; max-width: 120px; } /* Retrieval */
-        th:nth-child(8), td:nth-child(8) { min-width: 80px; max-width: 80px; }   /* Temperature */
-        /* Score columns - smaller width */
-        .score-cell { min-width: 90px; max-width: 90px; text-align: center; font-weight: 600; }
+        /* Score columns - narrower */
+        .score-cell {
+            min-width: 90px;
+            max-width: 90px;
+            text-align: center;
+            font-weight: 600;
+        }
         tbody tr {
             transition: background-color 0.2s ease;
         }
@@ -867,20 +852,17 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
                 <thead>
                     <tr>
                         <th onclick="sortTable(0)">Model</th>
-                        <th onclick="sortTable(1)">Embedding</th>
-                        <th onclick="sortTable(2)" class="sorted-desc">Combined</th>
-                        <th onclick="sortTable(3)">Top K</th>
-                        <th onclick="sortTable(4)">Chunk Size</th>
-                        <th onclick="sortTable(5)">Chunk Overlap</th>
-                        <th onclick="sortTable(6)">Retrieval</th>
-                        <th onclick="sortTable(7)">Temp</th>
-                        {{ range $idx, $score := $.CustomScores }}
-                        <th onclick="sortTable({{ add 8 $idx }})" class="score-cell">{{ $score }}</th>
+                        <th onclick="sortTable(1)" class="sorted-desc">Combined</th>
+                        {{ range $idx, $fieldName := $.CustomFieldNames }}
+                        <th onclick="sortTable({{ add 2 $idx }})">{{ $fieldName }}</th>
                         {{ end }}
-                        <th onclick="sortTable({{ add 8 (len $.CustomScores) }})">Tests</th>
-                        <th onclick="sortTable({{ add 9 (len $.CustomScores) }})">Min</th>
-                        <th onclick="sortTable({{ add 10 (len $.CustomScores) }})">Max</th>
-                        <th onclick="sortTable({{ add 11 (len $.CustomScores) }})">Time (ms)</th>
+                        {{ range $idx, $score := $.CustomScores }}
+                        <th onclick="sortTable({{ add 2 (len $.CustomFieldNames) $idx }})" class="score-cell">{{ $score }}</th>
+                        {{ end }}
+                        <th onclick="sortTable({{ add 2 (len $.CustomFieldNames) (len $.CustomScores) }})">Tests</th>
+                        <th onclick="sortTable({{ add 3 (len $.CustomFieldNames) (len $.CustomScores) }})">Min</th>
+                        <th onclick="sortTable({{ add 4 (len $.CustomFieldNames) (len $.CustomScores) }})">Max</th>
+                        <th onclick="sortTable({{ add 5 (len $.CustomFieldNames) (len $.CustomScores) }})">Time (ms)</th>
                     </tr>
                 </thead>
                 <tbody id="table-body">
@@ -888,13 +870,10 @@ func dashboardHandler(w http.ResponseWriter, r *http.Request) {
                     {{ $stat := index $.ModelStats . }}
                     <tr style="cursor: pointer;" onclick="window.location='/tests?model={{ $stat.Model }}'">
                         <td><strong>{{ $stat.ActualModelName }}</strong></td>
-                        <td>{{ index $stat.CustomFields "embedding_model" }}</td>
                         <td class="score {{ if ge $stat.AvgScore 0.7 }}score-good{{ else if ge $stat.AvgScore 0.5 }}score-fair{{ else }}score-poor{{ end }}">{{ printf "%.2f" $stat.AvgScore }}</td>
-                        <td>{{ index $stat.CustomFields "top_k" }}</td>
-                        <td>{{ index $stat.CustomFields "chunk_size" }}</td>
-                        <td>{{ index $stat.CustomFields "chunk_overlap" }}</td>
-                        <td>{{ index $stat.CustomFields "retrieval_method" }}</td>
-                        <td>{{ formatTemp (index $stat.CustomFields "temperature") }}</td>
+                        {{ range $fieldName := $.CustomFieldNames }}
+                        <td>{{ index $stat.CustomFields $fieldName }}</td>
+                        {{ end }}
                         {{ range $scoreType := $.CustomScores }}
                         {{ $customScore := index $stat.CustomScores $scoreType }}
                         <td class="score-cell score {{ if ge $customScore 0.7 }}score-good{{ else if ge $customScore 0.4 }}score-fair{{ else }}score-poor{{ end }}">{{ printf "%.2f" $customScore }}</td>

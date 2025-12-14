@@ -35,20 +35,20 @@ Built for **Go developers creating AI applications** who want a lightweight, hac
 
 ## Screenshots
 
-### Main Dashboard
+### Main Dashboard - Model Comparison
 ![Main Dashboard](assets/dashboard-main.png)
 
-*Model comparison table with dynamic columns for custom RAG parameters (chunk_size, temperature, top_k, etc.)*
+*Compare different model configurations side-by-side with dynamic columns for all custom parameters*
 
-### Test Details Table
+### Test Details - Table View
 ![Test Details](assets/test-details-table.png)
 
-*Clean table view with clickable rows for detailed inspection*
+*Clean, professional table layout showing all test results with clickable rows*
 
-### Test Modal
+### Test Details - Modal View
 ![Test Modal](assets/test-modal.png)
 
-*Full test details including question, model response, expected answer, score breakdown, and configuration*
+*Click any test to see full details: question, model response, expected answer, score breakdown, and RAG configuration*
 
 ---
 
